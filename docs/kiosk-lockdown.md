@@ -46,11 +46,21 @@ The iPad has 1 GB of RAM, and anything running in the background slows the deck.
    - Don't open the pairing link and keep using the deck in Safari: on iOS 12, Safari and Home
      Screen apps keep separate storage, and the login has to land in the Home Screen app.
    - About every 6 months Spotify ends the login. Delete the Deck icon and repeat these steps.
-2. Go to **Settings → Display & Brightness → Auto-Lock → Never**.
-3. Go to **Settings → Accessibility → Guided Access**, turn it on, and set a passcode.
-4. Open the deck and triple-click the Home button (or the top button). Turn off the Sleep/Wake
-   and Volume buttons in Options, but leave **Keyboards** on (song search needs it), then tap
-   **Start**.
+2. Go to **Settings → Display & Brightness → Auto-Lock → Never**, and keep the iPad on its
+   charger. With Auto-Lock on Never, a plugged-in iPad never sleeps.
+3. Go to **Settings → General → Accessibility → Guided Access** (on iOS 12 it's under General).
+   Turn it on, then:
+   - **Passcode Settings → Set Guided Access Passcode**. Don't use the iPad's own passcode.
+   - **Display Auto-Lock → Never**, if your iPad shows this option. Guided Access has its own
+     sleep timer, separate from the one in step 2.
+4. Open **Deck** from the Home Screen and triple-click the Home button. Tap **Options**:
+   - **Sleep/Wake Button: off**, so a bump can't turn the screen off.
+   - **Volume Buttons: off**.
+   - **Motion: off**, with the iPad already in landscape. This locks the rotation.
+   - **Keyboards: on**. Song search in Browse needs it.
+   - **Touch: on**.
+
+   Then tap **Start**.
 5. To exit, triple-click and enter the passcode.
 
 Guided Access turns off whenever the iPad restarts. That's fine for testing.
