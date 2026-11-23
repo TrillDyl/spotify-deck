@@ -14,7 +14,8 @@ Home Screen and later hard-locked as a kiosk.
   Up next button that shows the next three tracks. The queue is only fetched while it's open, and
   the open/closed choice is saved per device
 - **Browse**: a sheet (button in every layout, or tap the idle clock) listing all the user's
-  playlists to play, with a search box on top for songs. Tap a song to play it within its album,
+  playlists to play (their own and public ones they've saved, refetched each time it opens), with
+  a search box on top for songs. Tap a song to play it within its album,
   or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
   falls back to asking which device to play on
 - Update on its own when the track changes, with no user action

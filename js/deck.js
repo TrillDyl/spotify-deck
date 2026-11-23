@@ -727,8 +727,10 @@
     return pl.collaborative || (pl.owner && pl.owner.id === state.me.id);
   }
 
-  function loadPlaylists() {
-    if (state.playlists && Date.now() - state.playlistsAt < 10 * 60 * 1000) return Promise.resolve(state.playlists);
+  // Everything /me/playlists returns: ones you made and public ones you saved. fresh skips the
+  // 10-minute cache.
+  function loadPlaylists(fresh) {
+    if (!fresh && state.playlists && Date.now() - state.playlistsAt < 10 * 60 * 1000) return Promise.resolve(state.playlists);
     var me = state.me ? Promise.resolve(state.me) : Spotify.getMe();
     return me.then(function (user) {
       state.me = user;
@@ -800,9 +802,22 @@
   function showPlaylists() {
     var listEl = $('browse-list');
     var seq = search.seq;
-    fillList(listEl, [{ label: 'Loading…' }]);
-    loadPlaylists().then(function (pls) {
-      if (seq !== search.seq) return;  // a search started meanwhile
+    // Show what we have right away, then refetch so a playlist saved in the Spotify app since
+    // the last look shows up without waiting out the cache.
+    var shown = state.playlists;
+    if (shown) render(shown);
+    else fillList(listEl, [{ label: 'Loading…' }]);
+    loadPlaylists(true).then(function (pls) {
+      if (seq !== search.seq) return;  // a search started or the sheet closed meanwhile
+      if (shown && samePlaylists(shown, pls)) return;  // unchanged: keep the scroll position
+      render(pls);
+    }, function (err) {
+      if (shown) return;  // the cached list is still up
+      closeSheets();
+      actionError(err);
+    });
+
+    function render(pls) {
       var rows = [];
       if (!state.uri) rows.push({ label: 'Resume on a device…', resume: true });
       rows.push({ label: 'Your playlists', cls: 'section', inert: true });
@@ -821,10 +836,11 @@
         if (row.resume) openDevices();
         else startPlayback({ context_uri: row.uri }, row.label);
       });
-    }, function (err) {
-      closeSheets();
-      actionError(err);
-    });
+    }
+  }
+
+  function samePlaylists(a, b) {
+    return a.length === b.length && a.every(function (pl, i) { return pl.id === b[i].id && pl.name === b[i].name; });
   }
 
   function runSearch(offset) {
