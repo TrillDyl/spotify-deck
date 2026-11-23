@@ -11,6 +11,8 @@
 //   data-action="play|prev|next|like|add|browse|devices"  buttons
 //   data-action="queue"      shows or hides the layout's Up next (root gets queue-open); the queue
 //                            is only fetched while it's showing
+//   data-queue-list          the whole queue as rows: scroll it, tap a song to skip to it, swipe
+//                            left to remove it
 //   data-vol-control="slider|knob"                     drag to change the volume
 //   data-fit="120"           shrink the text from 120px until it fits its box
 // The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather, has-queue and
@@ -57,8 +59,12 @@
     errors: 0,
     volume: null,        // 0–100, or null when the device can't change volume
     volumeHoldUntil: 0,  // ignore polled volume while the user is dragging
-    queue: [],
+    queue: [],           // what the layouts show: Spotify's queue minus songs removed here
+    queueAll: [],        // Spotify's queue as fetched
     queueAt: 0,
+    skip: {},            // URI → how many upcoming plays to skip (songs removed from Up next)
+    context: '',         // playlist or album playing, so removals can be dropped when it changes
+    jumping: false,      // skipping forward to a tapped song
     weather: null,
     weatherAt: 0,
     me: null,
@@ -122,6 +128,7 @@
       shows: list(root, '[data-show]'),
       arts: list(root, 'img[data-art]'),
       queueArts: list(root, 'img[data-q-art]'),
+      queueList: root.querySelector('[data-queue-list]'),
       pixels: list(root, 'canvas[data-pixel]')
     };
     toggle(stage, 'stage-fixed', theme.fixed);
@@ -130,6 +137,8 @@
     loadFonts(THEMES[name].fonts);
     scaleStage();
     setupVolumeControls(root);
+    if (theme.queueList) setupQueueList(theme.queueList);
+    renderQueueList();
     paintArt();
     if (name === 'classic') paintBackground(state.art.small);
     paint();
@@ -456,6 +465,11 @@
         ? p.device.volume_percent : null;
     }
     state.item = item;
+    // A different playlist or album brings a different queue, so earlier removals no longer apply.
+    // (An empty context, e.g. while a queued song plays, isn't a change.)
+    var context = (p.context && p.context.uri) || '';
+    if (context && state.context && context !== state.context) state.skip = {};
+    if (context) state.context = context;
     if (item.uri !== state.uri) newItem(item);
 
     // Paused for a while: go to the idle clock so the screen doesn't burn in.
@@ -484,6 +498,9 @@
     paintArt();
     if (theme && theme.name === 'classic') paintBackground(state.art.small);
 
+    // A song removed from Up next has come up: skip it.
+    if (!state.jumping && takeSkip(item.uri)) Spotify.next().then(afterAction, function () {});
+
     var uri = item.uri;
     Spotify.isSaved(uri).then(function (saved) {
       if (state.uri === uri) { state.liked = saved; paint(); }
@@ -497,18 +514,7 @@
     var now = Date.now();
     if (needs('queue') && state.item && now - state.queueAt > 2 * 60 * 1000) {
       state.queueAt = now;
-      Spotify.getQueue().then(function (d) {
-        state.queue = ((d && d.queue) || []).slice(0, 4).map(function (q) {
-          var imgs = (q.album && q.album.images) || q.images || [];
-          return {
-            title: q.name || '',
-            artist: (q.artists || []).map(function (a) { return a.name; }).join(', ') || (q.show && q.show.name) || '',
-            art: imgs.length ? imgs[imgs.length - 1].url : ''
-          };
-        });
-        paintQueueArt();
-        paint();
-      }, function () {});
+      Spotify.getQueue().then(setQueue, function () {});
     }
     if (needs('weather') && Weather.configured() && now - state.weatherAt > 30 * 60 * 1000) {
       state.weatherAt = now;
@@ -516,6 +522,178 @@
         state.weatherAt = now - 25 * 60 * 1000;  // try again in 5 minutes
       });
     }
+  }
+
+  // ---- queue ----------------------------------------------------------------
+  // Spotify's API can't remove a song from the queue or jump to one. So Remove hides the song and
+  // the deck skips it when it comes up, and tapping a song skips forward to it (as the Spotify
+  // app does).
+  function setQueue(d) {
+    state.queueAll = ((d && d.queue) || []).map(function (q, i) {
+      var imgs = (q.album && q.album.images) || q.images || [];
+      return {
+        index: i,  // position in Spotify's queue
+        uri: q.uri,
+        title: q.name || '',
+        artist: (q.artists || []).map(function (a) { return a.name; }).join(', ') || (q.show && q.show.name) || '',
+        art: imgs.length ? imgs[imgs.length - 1].url : ''
+      };
+    });
+    // Forget removals for songs that have left the queue some other way.
+    var playing = d && d.currently_playing && d.currently_playing.uri;
+    Object.keys(state.skip).forEach(function (uri) {
+      var left = state.queueAll.filter(function (q) { return q.uri === uri; }).length + (uri === playing ? 1 : 0);
+      state.skip[uri] = Math.min(state.skip[uri], left);
+      if (!state.skip[uri]) delete state.skip[uri];
+    });
+    applyQueue();
+  }
+
+  // Hide removed songs. A removal hides (and later skips) that song's next appearance.
+  function applyQueue() {
+    var hide = {};
+    Object.keys(state.skip).forEach(function (uri) { hide[uri] = state.skip[uri]; });
+    state.queue = state.queueAll.filter(function (q) {
+      if (!hide[q.uri]) return true;
+      hide[q.uri]--;
+      return false;
+    });
+    renderQueueList();
+    paintQueueArt();
+    paint();
+  }
+
+  function takeSkip(uri) {
+    if (!state.skip[uri]) return false;
+    if (!--state.skip[uri]) delete state.skip[uri];
+    return true;
+  }
+
+  var openRow = null;  // the Up next row showing its Remove button
+
+  function renderQueueList() {
+    var listEl = theme && theme.queueList;
+    if (!listEl) return;
+    // Rebuilding resets the scroll position and reloads art, so skip it when nothing changed.
+    var key = state.queue.map(function (q) { return q.uri; }).join(' ');
+    if (listEl._key === key) return;
+    listEl._key = key;
+    openRow = null;
+    listEl.innerHTML = '';
+    state.queue.forEach(function (q, i) {
+      var row = el('div', 'c-qrow');
+      row.setAttribute('data-i', i);
+      var slide = el('div', 'c-qslide');
+      var art = el('img');
+      art.alt = '';
+      if (q.art) art.src = q.art;
+      var text = el('div', 'c-qtext');
+      text.appendChild(el('div', 'c-qt', q.title));
+      text.appendChild(el('div', 'c-qa', q.artist));
+      slide.appendChild(art);
+      slide.appendChild(text);
+      var remove = el('button', 'c-qremove', 'Remove');
+      remove.type = 'button';
+      row.appendChild(slide);
+      row.appendChild(remove);
+      listEl.appendChild(row);
+    });
+  }
+
+  // Tap a song to skip to it; swipe it left to reveal Remove.
+  function setupQueueList(listEl) {
+    var drag = null;
+    function point(e) { return e.touches ? e.touches[0] : e; }
+    function removeWidth(row) { return row.lastChild.offsetWidth; }
+    function slideTo(row, d, animate) {
+      toggle(row, 'dragging', !animate);
+      var slide = row.firstChild.style, remove = row.lastChild.style;
+      slide.webkitTransform = slide.transform = 'translateX(' + (-d) + 'px)';
+      remove.webkitTransform = remove.transform = 'translateX(' + (removeWidth(row) - d) + 'px)';
+    }
+    function closeOpen() {
+      if (openRow) slideTo(openRow, 0, true);
+      openRow = null;
+    }
+    function start(e) {
+      var row = e.target.closest && e.target.closest('.c-qrow');
+      if (!row || e.target.closest('.c-qremove')) return;
+      var p = point(e);
+      drag = { row: row, x: p.clientX, y: p.clientY, base: row === openRow ? removeWidth(row) : 0, d: 0, axis: '' };
+    }
+    function move(e) {
+      if (!drag) return;
+      var p = point(e), dx = p.clientX - drag.x, dy = p.clientY - drag.y;
+      if (!drag.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+        if (drag.axis === 'x' && openRow !== drag.row) closeOpen();
+      }
+      if (drag.axis !== 'x') return;
+      e.preventDefault();  // swiping a row, not scrolling the list
+      drag.d = Math.max(0, Math.min(removeWidth(drag.row), drag.base - dx));
+      slideTo(drag.row, drag.d, false);
+    }
+    function end() {
+      if (!drag) return;
+      var row = drag.row;
+      if (drag.axis === 'x') {
+        row._swipedAt = Date.now();  // the click that follows a swipe isn't a tap
+        if (drag.d > removeWidth(row) / 2) {
+          openRow = row;
+          slideTo(row, removeWidth(row), true);
+        } else {
+          if (openRow === row) openRow = null;
+          slideTo(row, 0, true);
+        }
+      }
+      drag = null;
+    }
+    listEl.addEventListener('touchstart', start);
+    listEl.addEventListener('touchmove', move, { passive: false });
+    listEl.addEventListener('touchend', end);
+    listEl.addEventListener('touchcancel', end);
+    listEl.addEventListener('mousedown', start);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', end);
+    listEl.addEventListener('click', function (e) {
+      var row = e.target.closest && e.target.closest('.c-qrow');
+      if (!row || Date.now() - (row._swipedAt || 0) < 400) return;
+      var q = state.queue[Number(row.getAttribute('data-i'))];
+      if (!q) return;
+      if (e.target.closest('.c-qremove')) return removeQueued(q);
+      if (openRow) return closeOpen();  // with Remove showing, a tap just hides it
+      jumpTo(q);
+    });
+  }
+
+  function removeQueued(q) {
+    state.skip[q.uri] = (state.skip[q.uri] || 0) + 1;
+    applyQueue();
+    toast('Removed ' + q.title);
+  }
+
+  function jumpTo(q) {
+    if (state.jumping) return;
+    state.jumping = true;
+    toggle(theme.root, 'is-skipping', true);
+    toast('Playing ' + q.title);
+    var passed = state.queueAll.slice(0, q.index);
+    function skip(n) { return n ? Spotify.next().then(function () { return skip(n - 1); }) : Promise.resolve(); }
+    skip(q.index + 1).then(function () {
+      // The songs skipped on the way have left the queue, removed ones included.
+      passed.forEach(function (s) { takeSkip(s.uri); });
+      state.queueAll = state.queueAll.slice(q.index + 1);
+      state.queueAll.forEach(function (s, i) { s.index = i; });
+      applyQueue();
+    }, function (err) {
+      toggle(theme.root, 'is-skipping', false);
+      actionError(err);
+    }).then(function () {
+      state.jumping = false;
+      state.queueAt = 0;  // fetch the real queue again
+      afterAction();
+    });
   }
 
   // Draw the smallest album image onto a tiny canvas and let CSS scale it up.

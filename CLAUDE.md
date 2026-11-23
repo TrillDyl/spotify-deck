@@ -11,8 +11,9 @@ Home Screen and later hard-locked as a kiosk.
 - Large touch controls: previous, play/pause, next, like (save to library)
 - **Add to playlist**: a picker listing the user's playlists, tap one to add the current track
 - **Classic layout extras**: a volume slider (hidden when the device can't change volume) and an
-  Up next button that shows the next three tracks. The queue is only fetched while it's open, and
-  the open/closed choice is saved per device
+  Up next button. Up next is a scrolling list of the whole queue: tap a song to skip to it, swipe
+  left to reveal **Remove**. The queue is only fetched while it's open, and the open/closed choice
+  is saved per device
 - **Browse**: a sheet (button in every layout, or tap the idle clock) listing all the user's
   playlists to play (their own and public ones they've saved, refetched each time it opens), with
   a search box on top for songs. Tap a song to play it within its album,
@@ -107,6 +108,10 @@ Player endpoints used (playback control needs Premium):
 - `PUT /v1/me/player/play?device_id=…` with `{context_uri, offset: {uri}}` or `{uris}`: Browse.
   Any playlist in the library can be played this way, even ones the user doesn't own
 - `POST /v1/me/player/queue?uri=…`: track or episode URIs only
+- **The queue can't be edited or jumped into** (no remove, clear or skip-to-item endpoint, checked
+  Nov 2026). So tapping a queued song calls `next` once per song before it, and Remove hides the
+  song and skips it with `next` when it starts playing (about a second may be heard). Removals
+  live in memory, and are dropped when a different playlist or album starts
 - `GET /v1/search?type=track`: **max `limit` is 10** since Feb 2026 (default 5); page with
   `offset`. The deck stops at 50 results to keep the DOM small
 - `GET /v1/playlists/{id}/items` only works for playlists the user owns or collaborates on (403

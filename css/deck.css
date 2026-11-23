@@ -117,8 +117,23 @@ svg { display: block; }
 .c-queue { display: none; margin-top: 2vmin; text-align: left; }
 .queue-open .c-queue { display: block; }
 .c-label { font-size: 2vmin; font-weight: 600; letter-spacing: 0.2vmin; text-transform: uppercase; opacity: 0.55; margin-bottom: 0.6vmin; }
-.c-qrow { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 0.9vmin 0; }
-.c-qrow img { width: 5.6vmin; height: 5.6vmin; -webkit-flex: none; flex: none; border-radius: 0.6vmin; object-fit: cover; background: rgba(255, 255, 255, 0.08); }
+/* About three and a quarter rows, so a cut-off row shows there's more to scroll */
+.c-qlist { max-height: 24vmin; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.c-qrow { position: relative; overflow: hidden; }
+.c-qslide {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 0.9vmin 0;
+  transition: -webkit-transform 0.2s ease; transition: transform 0.2s ease;
+}
+.c-qslide:active { opacity: 0.6; }
+/* Swipe left on a row to slide this in from the right */
+.c-qremove {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 18vmin;
+  background: #e5484d; color: #fff; font-size: 2.4vmin; font-weight: 600;
+  -webkit-transform: translateX(100%); transform: translateX(100%);
+  transition: -webkit-transform 0.2s ease; transition: transform 0.2s ease;
+}
+.c-qrow.dragging .c-qslide, .c-qrow.dragging .c-qremove { transition: none; }
+.c-qslide img { width: 5.6vmin; height: 5.6vmin; -webkit-flex: none; flex: none; border-radius: 0.6vmin; object-fit: cover; background: rgba(255, 255, 255, 0.08); }
 .c-qtext { min-width: 0; margin-left: 1.8vmin; }
 .c-qt, .c-qa { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .c-qt { font-size: 2.6vmin; font-weight: 600; }
