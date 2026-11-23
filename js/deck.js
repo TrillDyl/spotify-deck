@@ -286,11 +286,14 @@
     bumpSheetTimer();
   }
   function closeSheets() {
-    ['picker', 'devices', 'settings'].forEach(function (id) { toggle($(id), 'hidden', true); });
+    // This browser handed its login away, so start over at the login screen.
+    if (pairing) return window.location.reload();
+    ['picker', 'devices', 'settings', 'pairing'].forEach(function (id) { toggle($(id), 'hidden', true); });
     toggle($('scrim'), 'hidden', true);
     clearTimeout(sheetTimer);
-    logoutArmed = false;
+    logoutArmed = pairArmed = false;
     $('logout-btn').textContent = 'Log out';
+    $('pair-btn').textContent = 'Send login to iPad';
   }
   // Nobody is around to close a forgotten sheet on a kiosk, so close it automatically.
   function bumpSheetTimer() {
@@ -405,6 +408,46 @@
     window.location.reload();
   }
 
+  // ---- pairing: hand this browser's login to the iPad -----------------------
+  var QR_LIB = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  var QR_SRI = 'sha512-CNgIRecGo7nphbeZ04Sc13ka07paqdeTu0WR1IM4kNcpmBAUSHSQX0FslNhTDadL4O5SAGapGt4FodqL8My0mA==';
+  var pairArmed = false, pairing = false;
+
+  function loadQrLib() {
+    if (window.QRCode) return Promise.resolve();
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = QR_LIB;
+      s.integrity = QR_SRI;
+      s.crossOrigin = 'anonymous';
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  function onSendLogin() {
+    if (!pairArmed) {
+      pairArmed = true;
+      $('pair-btn').textContent = 'Tap again: this browser will log out';
+      return;
+    }
+    // Only computers need the QR library, so it's loaded on demand rather than on the iPad.
+    loadQrLib().then(function () {
+      var link = DeckAuth.handOff();
+      if (!link) return toast('Log in here first');
+      stopped = true;
+      openSheet('pairing');
+      clearTimeout(sheetTimer);
+      pairing = true;
+      new QRCode($('pair-qr'), { text: link, width: 320, height: 320, correctLevel: QRCode.CorrectLevel.L });
+      // Don't leave a login on screen indefinitely.
+      sheetTimer = setTimeout(closeSheets, 5 * 60 * 1000);
+    }, function () {
+      toast('Couldn’t load the QR code maker. Check the connection.');
+    });
+  }
+
   // ---- login ----------------------------------------------------------------
   function showLogin(message) {
     stopped = true;
@@ -479,6 +522,7 @@
     $('devices-btn').addEventListener('click', openDevices);
     $('reload-btn').addEventListener('click', function () { window.location.reload(); });
     $('logout-btn').addEventListener('click', onLogout);
+    $('pair-btn').addEventListener('click', onSendLogin);
   }
 
   function boot() {
@@ -488,7 +532,24 @@
     applySettings();
     setInterval(tick, 1000);
 
-    DeckAuth.handleCallback().then(function (error) {
+    // The Home Screen app doesn't need the pairing button; the iPad is the one receiving logins.
+    toggle($('pair-btn'), 'hidden', !!window.navigator.standalone);
+
+    // A pairing link opened in iOS Safari: the login has to land in the Home Screen app, which
+    // has its own storage. Keep the link in the address bar so Add to Home Screen captures it.
+    var onIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (DeckAuth.hasPairing() && onIOS && !window.navigator.standalone) {
+      stopped = true;
+      $('login-msg').textContent = 'Almost there. Tap Share, then Add to Home Screen, then open Deck from your Home Screen.';
+      toggle($('login-btn'), 'hidden', true);
+      toggle($('login-hint'), 'hidden', true);
+      show('login');
+      return;
+    }
+
+    DeckAuth.importPairing().then(function (pairError) {
+      return DeckAuth.handleCallback().then(function (error) { return error || pairError; });
+    }).then(function (error) {
       if (error || !DeckAuth.isLoggedIn()) {
         stopped = true;
         $('login-msg').textContent = error || '';

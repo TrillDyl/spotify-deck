@@ -33,9 +33,14 @@ Home Screen and later hard-locked as a kiosk.
   - With 1 GB RAM, keep the DOM small, use 300px album art and blur a small image rather than a
     large one, and avoid animations that run all the time.
   - Home Screen web apps on iOS 12 have **their own `localStorage`, separate from Safari's**.
-    Log in from inside the Home Screen app, not in Safari. Test early whether the OAuth redirect
-    returns to the standalone app. If it doesn't, the fallback is a way to hand a refresh token
-    to the iPad from another device.
+  - **Spotify's login page doesn't run on iOS 12**: its scripts use optional chaining, which
+    Safari 12 can't parse (checked Nov 2026). So the iPad never logs in itself. A computer logs
+    in and uses Settings → **Send login to iPad**, which shows a QR code for
+    `<deck URL>#pair=<refresh token>&since=<login time>` and logs the computer out (so two
+    devices never rotate the same refresh token). On iOS Safari the deck leaves the link in place
+    and asks for Add to Home Screen. The Home Screen app keeps the link as its start URL, imports
+    the token once (`deck.pairUsed`), and ignores it after that. The QR library loads from cdnjs
+    only on the computer.
 - **Dev machine:** MacBook Air (Apple silicon)
 - Lockdown plan: test with Guided Access, then supervise the iPad with Apple Configurator and
   use Single App Mode. See `docs/kiosk-lockdown.md`.

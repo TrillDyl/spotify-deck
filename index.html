@@ -22,6 +22,9 @@
       <h1>Spotify Deck</h1>
       <p id="login-msg" class="login-msg"></p>
       <button id="login-btn" class="big-btn">Connect Spotify</button>
+      <p id="login-hint" class="fine login-hint">Spotify's login page doesn't work on iOS 12. Log in
+        at this address on a computer instead, hold its top-left corner for 2 seconds, and choose
+        <b>Send login to iPad</b>.</p>
     </div>
   </section>
 
@@ -108,9 +111,24 @@
         </span>
       </div>
       <button id="devices-btn" class="wide-btn">Choose device</button>
+      <button id="pair-btn" class="wide-btn">Send login to iPad</button>
       <button id="reload-btn" class="wide-btn">Reload</button>
       <button id="logout-btn" class="wide-btn danger">Log out</button>
       <p id="login-expiry" class="fine"></p>
+    </div>
+  </div>
+
+  <!-- Pairing: a QR code that hands this browser's login to the iPad -->
+  <div id="pairing" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Send login to iPad</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="sheet-body scroll pair-body">
+      <div id="pair-qr" class="pair-qr"></div>
+      <p class="fine">On the iPad, open the <b>Camera</b> app, point it at this code and tap the banner.
+        In Safari, tap <b>Share → Add to Home Screen</b>, then open Deck from the Home Screen.
+        This browser is now logged out. Close this when you're done.</p>
     </div>
   </div>
 

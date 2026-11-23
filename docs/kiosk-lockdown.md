@@ -34,9 +34,18 @@ The iPad has 1 GB of RAM, and anything running in the background slows the deck.
 - Restart the iPad once at the end to clear memory.
 
 ## Phase 1: soft lock while testing (Guided Access)
-1. On the iPad, open the deck in Safari and tap **Share → Add to Home Screen**. Open it from the
-   new icon so it runs full-screen. **Log in to Spotify from inside that Home Screen app**, not in
-   Safari: on iOS 12 the two keep separate storage.
+1. Get the deck onto the iPad, already logged in. Spotify's login page doesn't run in iOS 12
+   Safari, so the login comes from your Mac:
+   1. On the Mac, open https://trilldyl.github.io/spotify-deck/ and **Connect Spotify**.
+   2. Hold the top-left corner for 2 seconds → **Send login to iPad** → tap again. A QR code
+      appears and the Mac logs itself out.
+   3. On the iPad, open **Camera**, point it at the code and tap the Safari banner. The deck
+      opens and says "Almost there".
+   4. Tap **Share → Add to Home Screen → Add**, then open **Deck** from the Home Screen. It
+      logs in by itself.
+   - Don't open the pairing link and keep using the deck in Safari: on iOS 12, Safari and Home
+     Screen apps keep separate storage, and the login has to land in the Home Screen app.
+   - About every 6 months Spotify ends the login. Delete the Deck icon and repeat these steps.
 2. Go to **Settings → Display & Brightness → Auto-Lock → Never**.
 3. Go to **Settings → Accessibility → Guided Access**, turn it on, and set a passcode.
 4. Open the deck and triple-click the Home button (or the top button). Turn off the Sleep/Wake

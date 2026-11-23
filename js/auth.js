@@ -3,6 +3,7 @@
 var DeckAuth = (function () {
   var STORAGE_KEY = 'deck.tokens';
   var PKCE_KEY = 'deck.pkce';
+  var PAIR_USED_KEY = 'deck.pairUsed';
   var AUTHORIZE_URL = 'https://accounts.spotify.com/authorize';
   var TOKEN_URL = 'https://accounts.spotify.com/api/token';
   var REFRESH_EARLY_MS = 5 * 60 * 1000;
@@ -240,6 +241,42 @@ var DeckAuth = (function () {
     return refresh();
   }
 
+  // ---- pairing --------------------------------------------------------------
+  // Spotify's login page doesn't run in iOS 12 Safari, so the iPad gets its login from a
+  // browser that can log in: a QR code for <deck URL>#pair=<refresh token>&since=<login time>.
+  // The token lives only in the URL fragment, which browsers never send to the server.
+  function readPairing() {
+    var m = /#pair=([^&]+)(?:&since=(\d+))?/.exec(window.location.hash);
+    return m ? { token: decodeURIComponent(m[1]), since: Number(m[2]) || Date.now() } : null;
+  }
+
+  // A Home Screen web app keeps the #pair link as its start URL, so it sees the same token on
+  // every launch. Only use a token once, and never over an existing login.
+  function importPairing() {
+    var p = readPairing();
+    if (!p) return Promise.resolve(null);
+    window.history.replaceState(null, '', DECK_CONFIG.REDIRECT_URI);
+    var tag = p.token.slice(-16);
+    if (isLoggedIn() || read(PAIR_USED_KEY) === tag) return Promise.resolve(null);
+
+    write(PAIR_USED_KEY, tag);
+    write(STORAGE_KEY, { access_token: '', refresh_token: p.token, expires_at: 0, login_at: p.since });
+    return refresh().then(function () { return null; }, function (err) {
+      // A network failure is fine: the deck retries the refresh on its next poll.
+      return err.code === 'logged_out' ? 'That pairing code has expired. Make a new one.' : null;
+    });
+  }
+
+  // Hands this browser's login to another device and logs this browser out, so the two
+  // never use (and rotate) the same refresh token.
+  function handOff() {
+    var tokens = read(STORAGE_KEY);
+    if (!tokens || !tokens.refresh_token) return null;
+    write(STORAGE_KEY, null);
+    return DECK_CONFIG.REDIRECT_URI + '#pair=' + encodeURIComponent(tokens.refresh_token) +
+      '&since=' + (tokens.login_at || Date.now());
+  }
+
   function isLoggedIn() {
     return !!read(STORAGE_KEY);
   }
@@ -257,6 +294,9 @@ var DeckAuth = (function () {
   return {
     login: login,
     handleCallback: handleCallback,
+    hasPairing: function () { return !!readPairing(); },
+    importPairing: importPairing,
+    handOff: handOff,
     getAccessToken: getAccessToken,
     forceRefresh: forceRefresh,
     isLoggedIn: isLoggedIn,
