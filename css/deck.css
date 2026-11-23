@@ -83,6 +83,16 @@ svg { display: block; }
 
 .is-liked .ctl-like { color: #1ed760; }
 
+/* Six buttons have to fit beside the art in landscape. flex: none keeps them round
+   (shrinking only their width would squash them into ovals). */
+.controls .ctl { -webkit-flex: none; flex: none; }
+@media (orientation: landscape) {
+  .controls .ctl { width: 8.2vmin; height: 8.2vmin; }
+  .controls .ctl svg { width: 5.4vmin; height: 5.4vmin; }
+  .controls .ctl-main { width: 12.5vmin; height: 12.5vmin; }
+  .controls .ctl-main svg { width: 7vmin; height: 7vmin; }
+}
+
 /* Portrait: stack the art above everything else */
 @media (orientation: portrait) {
   .t-classic { -webkit-flex-direction: column; flex-direction: column; }
@@ -128,12 +138,53 @@ svg { display: block; }
 }
 .sheet-list li {
   padding: 2.8vmin 1.5vmin; font-size: 3.2vmin; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline;
 }
+.sheet-list .label { -webkit-flex: 1; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sheet-list li:active { background: rgba(255, 255, 255, 0.1); }
-.sheet-list li.empty { opacity: 0.6; white-space: normal; }
+.sheet-list li.empty { opacity: 0.6; }
+.sheet-list li.empty .label { white-space: normal; }
 .sheet-list li.busy { opacity: 0.4; }
-.sheet-list .note { float: right; font-size: 2.4vmin; opacity: 0.5; margin-left: 2vmin; margin-top: 0.6vmin; text-transform: capitalize; }
+.sheet-list .note { -webkit-flex: none; flex: none; max-width: 40%; font-size: 2.4vmin; opacity: 0.5; margin-left: 2vmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sheet-list li.section { font-size: 2.2vmin; opacity: 0.5; text-transform: uppercase; letter-spacing: 0.2vmin; padding: 2.4vmin 1.5vmin 1vmin; }
+.sheet-list li.section:active { background: none; }
+.sheet-list li.more { -webkit-justify-content: center; justify-content: center; opacity: 0.7; }
+
+/* Browse: search box. Text must be selectable or iOS won't place a caret, and 16px or more stops
+   Safari zooming in on focus (px, not vmin, so a small window can't drop below it). */
+.search {
+  position: relative; margin: 1.5vmin 0 0; -webkit-flex: none; flex: none;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  background: rgba(255, 255, 255, 0.1); border-radius: 1.4vmin;
+}
+.search svg { fill: currentColor; }
+.search-icon { width: 4vmin; height: 4vmin; margin-left: 2vmin; opacity: 0.5; -webkit-flex: none; flex: none; }
+.search-input {
+  -webkit-flex: 1; flex: 1; min-width: 0; height: 9vmin; padding: 0 2vmin; margin: 0;
+  font: inherit; font-size: 24px; color: #fff; background: none; border: 0; outline: none;
+  border-radius: 0; -webkit-appearance: none; appearance: none;
+  -webkit-user-select: text; user-select: text;
+}
+.search-input::-webkit-input-placeholder { color: rgba(255, 255, 255, 0.4); }
+.search-input::-webkit-search-cancel-button, .search-input::-webkit-search-decoration { -webkit-appearance: none; }
+.search-clear { width: 9vmin; height: 9vmin; -webkit-flex: none; flex: none; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; opacity: 0.6; }
+.search-clear svg { width: 3.6vmin; height: 3.6vmin; }
+
+/* Browse: song results */
+.sheet-list li.track {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  padding: 1.4vmin 0 1.4vmin 1.5vmin; white-space: normal;
+}
+.track-art { width: 8vmin; height: 8vmin; -webkit-flex: none; flex: none; border-radius: 0.6vmin; background: rgba(255, 255, 255, 0.08); }
+.track-text { -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 2vmin; }
+.track-title, .track-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track-artist { font-size: 2.5vmin; opacity: 0.55; margin-top: 0.4vmin; }
+.track-queue {
+  -webkit-flex: none; flex: none; margin-left: 1.5vmin; height: 9vmin; padding: 0 2.6vmin;
+  font-size: 2.4vmin; font-weight: 600; border-radius: 999px; background: rgba(255, 255, 255, 0.1);
+}
+.track-queue:active { background: rgba(255, 255, 255, 0.25); }
+.track.busy .track-queue { visibility: hidden; }
 
 .row {
   display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between;

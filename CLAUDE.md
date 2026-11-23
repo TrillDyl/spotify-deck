@@ -10,6 +10,10 @@ Home Screen and later hard-locked as a kiosk.
   art, track title, artist, album, and a progress bar
 - Large touch controls: previous, play/pause, next, like (save to library)
 - **Add to playlist**: a picker listing the user's playlists, tap one to add the current track
+- **Browse**: a sheet (button in every layout, or tap the idle clock) listing all the user's
+  playlists to play, with a search box on top for songs. Tap a song to play it within its album,
+  or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
+  falls back to asking which device to play on
 - Update on its own when the track changes, with no user action
 - Idle state when nothing is playing: a dimmed clock, never a blank page or an error
 
@@ -96,6 +100,13 @@ Player endpoints used (playback control needs Premium):
 - `PUT /v1/me/player/play`, `PUT /v1/me/player/pause`
 - `POST /v1/me/player/next`, `POST /v1/me/player/previous`
 - `GET /v1/me/player/devices` and `PUT /v1/me/player` (transfer): nice-to-have device picker
+- `PUT /v1/me/player/play?device_id=…` with `{context_uri, offset: {uri}}` or `{uris}`: Browse.
+  Any playlist in the library can be played this way, even ones the user doesn't own
+- `POST /v1/me/player/queue?uri=…`: track or episode URIs only
+- `GET /v1/search?type=track`: **max `limit` is 10** since Feb 2026 (default 5); page with
+  `offset`. The deck stops at 50 results to keep the DOM small
+- `GET /v1/playlists/{id}/items` only works for playlists the user owns or collaborates on (403
+  otherwise), so Browse plays playlists from the top rather than listing their songs
 
 Scopes to request (trim any the API no longer needs):
 `user-read-playback-state user-modify-playback-state user-read-currently-playing
@@ -139,6 +150,7 @@ checking on the iPad with real playback.
 1. [x] Auth works: log in (on a computer, then QR pairing to the iPad)
 2. [ ] Controls: prev / play-pause / next / like, with optimistic UI updates
 3. [ ] Add-to-playlist picker (only playlists the user owns or collaborates on)
+   - Browse (play playlists, search and queue songs) is built and passes against mocks
 4. [ ] Polish: blurred album-art background, smooth track transitions, progress bar, idle clock
    (the "blur" is a 10×10 canvas scaled up, which is far cheaper than a CSS blur on the A7)
 5. [ ] Deploy to GitHub Pages, add that redirect URI, and test on the real iPad

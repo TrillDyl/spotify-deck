@@ -1,4 +1,4 @@
-// UI: boot, polling loop, layouts (themes), controls, sheets (playlists, devices, settings), idle clock.
+// UI: boot, polling loop, layouts (themes), controls, sheets (playlists, browse, devices, settings), idle clock.
 //
 // Each layout is a <template id="tpl-NAME"> in index.html. Its markup names what it shows and
 // the engine fills it in, so a layout is just HTML and CSS:
@@ -8,7 +8,7 @@
 //   data-show="weather"      shown only when that data exists ("!q1" = only when it doesn't)
 //   img data-art="big|mid|small", img data-q-art="1"   album art, queue art
 //   canvas data-pixel="16" data-palette="#a,#b,…"      album art redrawn as pixel art
-//   data-action="play|prev|next|like|add|devices"      buttons
+//   data-action="play|prev|next|like|add|browse|devices"  buttons
 //   data-vol-control="slider|knob"                     drag to change the volume
 //   data-fit="120"           shrink the text from 120px until it fits its box
 // The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather and has-queue.
@@ -44,6 +44,7 @@
     shuffle: false,
     liked: false,
     device: '',
+    deviceId: '',        // last device seen playing; kept while idle so new playback can target it
     progressMs: 0,
     durationMs: 0,
     progressAt: 0,       // Date.now() when progressMs was measured
@@ -371,12 +372,16 @@
     toastTimer = setTimeout(function () { toggle(t, 'hidden', true); }, 2500);
   }
 
+  function isNoDevice(err) {
+    return !!err && (err.reason === 'NO_ACTIVE_DEVICE' || (err.status === 404 && /device/i.test(err.message)));
+  }
+
   function actionError(err) {
     if (err && err.code === 'logged_out') return showLogin();
     var status = err && err.status;
     if (status === 0) toast('No connection');
     else if (status === 429) toast('Spotify is busy. Try again in a moment.');
-    else if (err.reason === 'NO_ACTIVE_DEVICE' || (status === 404 && /device/i.test(err.message))) {
+    else if (isNoDevice(err)) {
       toast('Nothing is playing. Pick a device.');
       openDevices();
     }
@@ -422,6 +427,7 @@
   // ---- state from Spotify ---------------------------------------------------
   function render(p) {
     var item = p && p.item;
+    if (p && p.device && p.device.id) state.deviceId = p.device.id;
     if (!item) {
       state.uri = null;
       state.item = null;
@@ -602,6 +608,7 @@
     next: function () { onSkip(true); },
     like: onLike,
     add: function () { openPicker(); },
+    browse: function () { openBrowse(); },
     devices: function () { openDevices(); }
   };
 
@@ -661,7 +668,10 @@
   function closeSheets() {
     // This browser handed its login away, so start over at the login screen.
     if (pairing) return window.location.reload();
-    ['picker', 'devices', 'settings', 'pairing'].forEach(function (id) { toggle($(id), 'hidden', true); });
+    ['picker', 'browse', 'devices', 'settings', 'pairing'].forEach(function (id) { toggle($(id), 'hidden', true); });
+    $('search-input').blur();
+    clearTimeout(search.timer);
+    search.seq++;  // drop any search still in flight
     toggle($('scrim'), 'hidden', true);
     clearTimeout(sheetTimer);
     logoutArmed = pairArmed = false;
@@ -674,24 +684,33 @@
     sheetTimer = setTimeout(closeSheets, C.SHEET_TIMEOUT_MS);
   }
 
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text) e.textContent = text;
+    return e;
+  }
+
+  // rows: { label, note?, cls?, inert? }. Rows are tappable when onPick is given, unless inert.
   function fillList(listEl, rows, onPick) {
     listEl.innerHTML = '';
     rows.forEach(function (row) {
-      var li = document.createElement('li');
-      li.textContent = row.label;
-      if (row.note) {
-        var note = document.createElement('span');
-        note.className = 'note';
-        note.textContent = row.note;
-        li.appendChild(note);
-      }
-      if (onPick) li.addEventListener('click', function () { onPick(row, li); });
-      else li.className = 'empty';
+      var li = el('li');
+      var live = onPick && !row.inert;
+      li.className = row.cls || (live ? '' : 'empty');
+      li.appendChild(el('span', 'label', row.label));
+      if (row.note) li.appendChild(el('span', 'note', row.note));
+      if (live) li.addEventListener('click', function () { onPick(row, li); });
       listEl.appendChild(li);
     });
   }
 
-  // Playlist picker: only playlists you own or collaborate on can take new tracks.
+  // Every playlist in your library. Any of them can be played; only playlists you own or
+  // collaborate on can take new tracks.
+  function canAddTo(pl) {
+    return pl.collaborative || (pl.owner && pl.owner.id === state.me.id);
+  }
+
   function loadPlaylists() {
     if (state.playlists && Date.now() - state.playlistsAt < 10 * 60 * 1000) return Promise.resolve(state.playlists);
     var me = state.me ? Promise.resolve(state.me) : Spotify.getMe();
@@ -705,9 +724,7 @@
       }
       return page(0, []);
     }).then(function (all) {
-      state.playlists = all.filter(function (pl) {
-        return pl && (pl.collaborative || (pl.owner && pl.owner.id === state.me.id));
-      });
+      state.playlists = all.filter(Boolean);
       state.playlistsAt = Date.now();
       return state.playlists;
     });
@@ -718,7 +735,8 @@
     var listEl = $('picker-list');
     fillList(listEl, [{ label: 'Loading…' }]);
     openSheet('picker');
-    loadPlaylists().then(function (pls) {
+    loadPlaylists().then(function (all) {
+      var pls = all.filter(canAddTo);
       if (!pls.length) return fillList(listEl, [{ label: 'No playlists you can add to.' }]);
       fillList(listEl, pls.map(function (pl) { return { label: pl.name, id: pl.id }; }), addToPlaylist);
     }, function (err) {
@@ -739,8 +757,155 @@
     });
   }
 
-  // Device sheet: start or move playback to one of your Spotify devices.
-  function openDevices() {
+  // ---- browse: play one of your playlists, or search for a song -------------
+  var search = { q: '', seq: 0, timer: null };
+
+  function openBrowse() {
+    // Start fresh each time: on a kiosk the last search could be hours old.
+    $('search-input').value = '';
+    openSheet('browse');
+    setQuery('');
+  }
+
+  function setQuery(raw) {
+    clearTimeout(search.timer);
+    search.timer = null;
+    search.q = raw.replace(/^\s+|\s+$/g, '');
+    toggle($('search-clear'), 'hidden', !raw);
+    if (!search.q) {
+      search.seq++;
+      showPlaylists();
+      return;
+    }
+    // Wait for a pause in typing so each keystroke isn't a request.
+    search.timer = setTimeout(function () { search.timer = null; runSearch(0); }, 450);
+  }
+
+  function showPlaylists() {
+    var listEl = $('browse-list');
+    var seq = search.seq;
+    fillList(listEl, [{ label: 'Loading…' }]);
+    loadPlaylists().then(function (pls) {
+      if (seq !== search.seq) return;  // a search started meanwhile
+      var rows = [];
+      if (!state.uri) rows.push({ label: 'Resume on a device…', resume: true });
+      rows.push({ label: 'Your playlists', cls: 'section', inert: true });
+      if (!pls.length) rows.push({ label: 'No playlists yet.', cls: 'empty', inert: true });
+      pls.forEach(function (pl) {
+        var mine = canAddTo(pl);
+        var count = pl.items || pl.tracks;
+        rows.push({
+          label: pl.name,
+          note: !mine && pl.owner && pl.owner.display_name ? 'by ' + pl.owner.display_name
+            : count && typeof count.total === 'number' ? count.total + ' songs' : '',
+          uri: pl.uri
+        });
+      });
+      fillList(listEl, rows, function (row) {
+        if (row.resume) openDevices();
+        else startPlayback({ context_uri: row.uri }, row.label);
+      });
+    }, function (err) {
+      closeSheets();
+      actionError(err);
+    });
+  }
+
+  function runSearch(offset) {
+    var q = search.q, seq = ++search.seq, listEl = $('browse-list');
+    if (!offset) fillList(listEl, [{ label: 'Searching…' }]);
+    Spotify.searchTracks(q, offset).then(function (data) {
+      if (seq !== search.seq) return;  // a newer search replaced this one
+      var page = (data && data.tracks) || {};
+      var tracks = (page.items || []).filter(Boolean);
+      if (!offset && !tracks.length) return fillList(listEl, [{ label: 'No songs found for “' + q + '”.' }]);
+      if (!offset) listEl.innerHTML = '';
+      var more = listEl.querySelector('.more');
+      if (more) listEl.removeChild(more);
+      tracks.forEach(function (t) { listEl.appendChild(trackRow(t)); });
+      // Spotify returns 10 at a time; stop at 50 to keep the list light on the iPad.
+      if (page.next && offset + 10 < 50) {
+        more = el('li', 'more', 'More results');
+        more.addEventListener('click', function () {
+          if (more.textContent !== 'More results') return;
+          more.textContent = 'Loading…';
+          runSearch(offset + 10);
+        });
+        listEl.appendChild(more);
+      }
+    }, function (err) {
+      if (seq !== search.seq) return;
+      if (err && err.code === 'logged_out') return actionError(err);
+      var msg = err && err.status === 0 ? 'No connection. Try again.'
+        : err && err.status === 429 ? 'Spotify is busy. Try again in a moment.'
+        : 'Search didn’t work. Try again.';
+      if (!offset) return fillList(listEl, [{ label: msg }]);
+      toast(msg);
+      var more = listEl.querySelector('.more');
+      if (more) more.textContent = 'More results';
+    });
+  }
+
+  function trackRow(t) {
+    var li = el('li', 'track');
+    var imgs = (t.album && t.album.images) || [];
+    var art = el('img', 'track-art');
+    art.alt = '';
+    if (imgs.length) art.src = imgs[imgs.length - 1].url;  // the smallest (64px)
+    var text = el('div', 'track-text');
+    text.appendChild(el('div', 'track-title', t.name || ''));
+    text.appendChild(el('div', 'track-artist', (t.artists || []).map(function (a) { return a.name; }).join(', ')));
+    var queue = el('button', 'track-queue', '+ Queue');
+    queue.type = 'button';
+    queue.setAttribute('aria-label', 'Add to queue');
+    queue.addEventListener('click', function (e) {
+      e.stopPropagation();
+      queueTrack(t, li);
+    });
+    li.appendChild(art);
+    li.appendChild(text);
+    li.appendChild(queue);
+    li.addEventListener('click', function () {
+      // Play it within its album so music keeps going after the song ends.
+      startPlayback(t.album && t.album.uri ? { context_uri: t.album.uri, offset: { uri: t.uri } } : { uris: [t.uri] }, t.name);
+    });
+    return li;
+  }
+
+  function queueTrack(t, li) {
+    if (li.classList.contains('busy')) return;
+    toggle(li, 'busy', true);
+    Spotify.addToQueue(t.uri).then(function () {
+      toggle(li, 'busy', false);
+      toast('Queued ' + t.name);
+      state.queueAt = 0;  // refresh the layouts' Up next
+    }, function (err) {
+      toggle(li, 'busy', false);
+      if (isNoDevice(err)) toast('Start playing something first, then queue songs.');
+      else actionError(err);
+    });
+  }
+
+  // Start a playlist, album or track. Target the last device seen so this works from the idle
+  // clock too; if that device is gone, ask which one to play on.
+  function startPlayback(body, label) {
+    closeSheets();
+    function done() {
+      toast('Playing ' + label);
+      afterAction();
+    }
+    Spotify.playItems(body, state.deviceId).then(done, function (err) {
+      if (!isNoDevice(err)) return actionError(err);
+      openDevices(function (device) {
+        state.deviceId = device.id;
+        Spotify.playItems(body, device.id).then(done, actionError);
+      });
+    });
+  }
+
+  // Device sheet: start or move playback to one of your Spotify devices, or with onPick, choose
+  // a device for something else (like starting a playlist).
+  function openDevices(onPick) {
     var listEl = $('devices-list');
     fillList(listEl, [{ label: 'Looking for devices…' }]);
     openSheet('devices');
@@ -751,6 +916,7 @@
         return { label: d.name, note: d.is_active ? 'Playing here' : d.type, id: d.id };
       }), function (row) {
         closeSheets();
+        if (onPick) return onPick(row);
         Spotify.transfer(row.id, true).then(afterAction, actionError);
       });
     }, function (err) {
@@ -887,10 +1053,29 @@
     });
     $('login-btn').addEventListener('click', function () { DeckAuth.login(); });
 
-    // Tapping the idle clock brings back a paused track, or offers devices to play on.
+    // Tapping the idle clock brings back a paused track, or opens Browse to start something.
     $('idle').addEventListener('click', function () {
       if (state.uri) { state.wokeAt = Date.now(); show('deck'); }
-      else openDevices();
+      else openBrowse();
+    });
+
+    // Search box. Search runs as you type; the keyboard's Search key just hides the keyboard.
+    var input = $('search-input');
+    input.addEventListener('input', function () {
+      bumpSheetTimer();
+      setQuery(input.value);
+    });
+    $('search-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      input.blur();
+      // Typed and hit Search before the pause: search now instead of waiting.
+      if (search.q && search.timer) { clearTimeout(search.timer); search.timer = null; runSearch(0); }
+    });
+    // iOS 12 can leave the page pushed up after the keyboard closes.
+    input.addEventListener('blur', function () { window.scrollTo(0, 0); });
+    $('search-clear').addEventListener('click', function () {
+      input.value = '';
+      setQuery('');
     });
 
     $('scrim').addEventListener('click', closeSheets);
@@ -905,7 +1090,7 @@
         if (key === 'theme') setTheme(raw);
       });
     });
-    $('devices-btn').addEventListener('click', openDevices);
+    $('devices-btn').addEventListener('click', function () { openDevices(); });
     $('reload-btn').addEventListener('click', function () { window.location.reload(); });
     $('logout-btn').addEventListener('click', onLogout);
     $('pair-btn').addEventListener('click', onSendLogin);

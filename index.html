@@ -56,6 +56,21 @@
     <ul id="picker-list" class="sheet-list scroll"></ul>
   </div>
 
+  <!-- Browse: your playlists, or song search once something is typed -->
+  <div id="browse" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Browse</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <form id="search-form" class="search" action="#">
+      <svg class="search-icon" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input id="search-input" class="search-input" type="search" placeholder="Search songs"
+        autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      <button id="search-clear" class="search-clear hidden" type="button" aria-label="Clear search"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </form>
+    <ul id="browse-list" class="sheet-list scroll"></ul>
+  </div>
+
   <div id="devices" class="sheet hidden">
     <div class="sheet-header">
       <span>Play on</span>
@@ -134,6 +149,7 @@
           </button>
           <button class="ctl" data-action="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
           <button class="ctl" data-action="add" aria-label="Add to playlist"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg></button>
+          <button class="ctl" data-action="browse" aria-label="Browse playlists and search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
         </div>
       </div>
     </div>
@@ -179,6 +195,7 @@
         <button class="cs-key cs-key-play" data-action="play" aria-label="Play or pause"><i class="cs-led led-play"></i><svg class="ic" viewBox="0 0 28 24" style="width: 34px"><polygon points="3 4 12 12 3 20 3 4"/><line x1="18" y1="5" x2="18" y2="19"/><line x1="23" y1="5" x2="23" y2="19"/></svg>PLAY / PAUSE</button>
         <button class="cs-key" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg>F.FWD</button>
         <button class="cs-key" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/><line x1="18" y1="14" x2="18" y2="22"/><line x1="14" y1="18" x2="22" y2="18"/></svg>ADD</button>
+        <button class="cs-key" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>BROWSE</button>
       </div>
     </div>
   </template>
@@ -217,6 +234,7 @@
           <button class="hf-btn hf-btn-main" data-action="play" aria-label="Play or pause"><i class="hf-led led-play" style="background: #ffb000"></i>Play · Pause</button>
           <button class="hf-btn" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>Next</button>
           <button class="hf-btn" data-action="add" aria-label="Add to playlist"><i class="hf-led" style="background: #4b4b47; opacity: 1"></i>Playlist</button>
+          <button class="hf-btn" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>Browse</button>
         </div>
       </div>
       <div class="hf-cheek"></div>
@@ -255,6 +273,7 @@
           <div class="tt-pills">
             <button class="tt-pill tt-pill-like" data-action="like" aria-label="Like"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg><span class="lbl-like">Like</span><span class="lbl-liked">Liked</span></button>
             <button class="tt-pill" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist</button>
+            <button class="tt-pill" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>Browse</button>
           </div>
           <div class="tt-foot">33⅓ RPM · <span data-t="device"></span></div>
         </div>
@@ -295,6 +314,7 @@
           <button class="tm-key tm-key-play" data-action="play" aria-label="Play or pause"><span class="tm-fn">F3</span><span class="lbl-play">&gt; PLAY</span><span class="lbl-pause">|| PAUSE</span></button>
           <button class="tm-key" data-action="next" aria-label="Next"><span class="tm-fn">F4</span>NEXT &gt;&gt;</button>
           <button class="tm-key" data-action="add" aria-label="Add to playlist"><span class="tm-fn">F5</span>+ LIST</button>
+          <button class="tm-key" data-action="browse" aria-label="Browse playlists and search"><span class="tm-fn">F6</span>BROWSE</button>
         </div>
         <i class="tm-scanlines"></i>
       </div>
@@ -328,6 +348,7 @@
             <button class="hh-cmd" data-action="prev" aria-label="Previous">BACK</button>
             <button class="hh-cmd" data-action="like" aria-label="Like"><span class="lbl-like">LIKE</span><span class="lbl-liked">UNLIKE</span></button>
             <button class="hh-cmd" data-action="add" aria-label="Add to playlist">ADD TO LIST</button>
+            <button class="hh-cmd" data-action="browse" aria-label="Browse playlists and search">BROWSE</button>
           </div>
         </div>
       </div>
@@ -368,6 +389,7 @@
           <button class="db-btn db-main" data-action="play" aria-label="Play or pause"><svg class="ic i-play" viewBox="0 0 24 24"><polygon points="7 4 19 12 7 20 7 4"/></svg><svg class="ic i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg></button>
           <button class="db-btn" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
           <button class="db-btn" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/><line x1="18" y1="14" x2="18" y2="22"/><line x1="14" y1="18" x2="22" y2="18"/></svg></button>
+          <button class="db-btn" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg></button>
         </div>
       </div>
       <div class="db-col db-right">
@@ -413,6 +435,7 @@
         <button class="bc-btn bc-ring" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
         <button class="bc-btn bc-main" data-action="play" aria-label="Play or pause"><svg class="ic i-play" viewBox="0 0 24 24"><polygon points="7 4 19 12 7 20 7 4"/></svg><svg class="ic i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg></button>
         <button class="bc-btn bc-ring" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
+        <button class="bc-btn bc-ring" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg></button>
       </div>
     </div>
   </template>
@@ -445,6 +468,7 @@
         <button class="ps-btn ps-main" data-action="play" aria-label="Play or pause"><span class="lbl-play">Play</span><span class="lbl-pause">Pause</span></button>
         <button class="ps-btn" data-action="next" aria-label="Next">Next</button>
         <button class="ps-btn" data-action="add" aria-label="Add to playlist">+ Playlist</button>
+        <button class="ps-btn" data-action="browse" aria-label="Browse playlists and search">Browse</button>
       </div>
     </div>
   </template>

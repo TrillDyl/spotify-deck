@@ -67,6 +67,16 @@ var Spotify = (function () {
     pause:           function ()            { return request('PUT',  '/me/player/pause'); },
     next:            function ()            { return request('POST', '/me/player/next'); },
     previous:        function ()            { return request('POST', '/me/player/previous'); },
+    // body: { context_uri, offset } for a playlist or album, or { uris } for tracks.
+    // deviceId is optional; without it Spotify uses the active device.
+    playItems:       function (body, deviceId) {
+      return request('PUT', '/me/player/play' + (deviceId ? '?device_id=' + encodeURIComponent(deviceId) : ''), body);
+    },
+    addToQueue:      function (uri)         { return request('POST', '/me/player/queue?uri=' + encodeURIComponent(uri)); },
+    // Spotify caps search at 10 results per request (2026); page with offset.
+    searchTracks:    function (q, offset)   {
+      return request('GET', '/search?type=track&limit=10&offset=' + (offset || 0) + '&q=' + encodeURIComponent(q));
+    },
     getDevices:      function ()            { return request('GET',  '/me/player/devices'); },
     getQueue:        function ()            { return request('GET',  '/me/player/queue'); },
     setVolume:       function (percent)     { return request('PUT',  '/me/player/volume?volume_percent=' + Math.round(percent)); },

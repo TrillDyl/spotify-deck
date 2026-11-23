@@ -30,7 +30,7 @@ The iPad has 1 GB of RAM, and anything running in the background slows the deck.
   General → Accessibility → Display Accommodations. Turn it on so the deck dims with the room.
 - **Apps:** delete every app you can (press and hold an icon → ✕). Leave Safari and Settings.
 - **Keyboard:** Settings → General → Keyboard → turn off Auto-Correction, Predictive and
-  Enable Dictation, so the keyboard loads faster the one time you log in.
+  Enable Dictation, so the keyboard loads faster when you search for songs in Browse.
 - Restart the iPad once at the end to clear memory.
 
 ## Phase 1: soft lock while testing (Guided Access)
@@ -49,7 +49,8 @@ The iPad has 1 GB of RAM, and anything running in the background slows the deck.
 2. Go to **Settings → Display & Brightness → Auto-Lock → Never**.
 3. Go to **Settings → Accessibility → Guided Access**, turn it on, and set a passcode.
 4. Open the deck and triple-click the Home button (or the top button). Turn off the Sleep/Wake
-   and Volume buttons in Options, then tap **Start**.
+   and Volume buttons in Options, but leave **Keyboards** on (song search needs it), then tap
+   **Start**.
 5. To exit, triple-click and enter the passcode.
 
 Guided Access turns off whenever the iPad restarts. That's fine for testing.

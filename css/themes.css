@@ -294,7 +294,7 @@
 .tm-side { width: 260px; flex: none; margin-left: 34px; display: flex; flex-direction: column; }
 .tm-small { font-size: 22px; white-space: nowrap; }
 .tm-cover { width: 260px; height: 260px; margin: 10px 0; background: #0b2414; }
-.tm-keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-gap: 14px; margin-top: 14px; }
+.tm-keys { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-gap: 14px; margin-top: 14px; }
 .tm-key {
   height: 82px; border: 2px solid #5cff8a; border-radius: 4px; color: #5cff8a; text-shadow: inherit;
   font-family: VT323, monospace; font-size: 30px; line-height: 1;
@@ -456,10 +456,10 @@
 .ps-bar { height: 10px; flex: none; margin-top: 24px; position: relative; background: #d8d2c4; }
 .ps-bar div { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: #111; }
 .ps-bar i { position: absolute; left: 0; top: -6px; width: 10px; height: 22px; margin-left: -5px; background: #e03a1e; }
-.ps-buttons { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-gap: 14px; margin-top: 22px; flex: none; }
+.ps-buttons { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); grid-gap: 14px; margin-top: 22px; flex: none; }
 .ps-btn {
-  height: 74px; padding: 0 16px; text-align: left; border: 3px solid #111; color: #111;
-  font: 800 18px Inter, sans-serif; text-transform: uppercase; letter-spacing: 1px;
+  height: 74px; padding: 0 14px; text-align: left; border: 3px solid #111; color: #111; white-space: nowrap;
+  font: 800 17px Inter, sans-serif; text-transform: uppercase; letter-spacing: 0.5px;
 }
 .ps-main { background: #111; color: #f1ede4; }
 .ps-btn:active, .is-liked .ps-btn[data-action="like"] { background: #e03a1e; border-color: #e03a1e; color: #f1ede4; }
