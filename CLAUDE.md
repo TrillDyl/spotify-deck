@@ -20,8 +20,11 @@ Home Screen and later hard-locked as a kiosk.
   a search box on top for songs. Tap a song to play it within its album,
   or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
   falls back to asking which device to play on
-- **Record player mode** (Settings → Mode): a bookshelf of saved albums (`GET /me/albums`), a
-  sleeve showing each side, and a turntable. Albums split into sides by disc and length (7" for
+- **Record player mode** (Settings → Mode): a shelf of saved albums (`GET /me/albums`), shown
+  as covers face-out (the default) or as spines, with a search box, sorting and an A–Z rail.
+  Cover images load only near the screen and unload when far away, to fit the iPad's 1 GB RAM.
+  Then a sleeve with the record sliding out and each side listed, and a turntable whose panel
+  shows the cover. Albums split into sides by disc and length (7" for
   short singles). A side plays as a `uris` list with shuffle and repeat off. Sound only plays
   with the platter on (Start/Stop) and the needle down; the tonearm is the only way to change
   songs. A side ends in the run-out groove (manual arm), and Flip needs the arm at rest. If

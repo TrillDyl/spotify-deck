@@ -134,15 +134,32 @@
 }
 .tt-btn:active { background: rgba(255, 255, 255, 0.2); }
 .tt-btn svg { width: 26px; height: 26px; margin-right: 10px; }
-.tt-info { -webkit-flex: 1; flex: 1; min-height: 0; padding: 26px 4px 0; overflow: hidden; }
-.tt-side { font-size: 14px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #f0b25e; }
-.tt-album {
-  font-size: 28px; font-weight: 700; line-height: 1.15; margin-top: 10px;
-  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+/* The sleeve of the record on the platter, standing up like a now-playing display. */
+.tt-stand {
+  height: 206px; margin-top: 18px; -webkit-flex: none; flex: none;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
 }
-.tt-artist { font-size: 17px; opacity: 0.65; margin-top: 6px; }
+.tt-cover {
+  display: block; width: 204px; height: 204px; object-fit: cover; border-radius: 3px; background: #2a2119;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.tt-stand-empty {
+  width: 204px; height: 204px; border: 2px dashed rgba(255, 255, 255, 0.15); border-radius: 6px;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center; font-size: 16px; color: rgba(255, 255, 255, 0.35);
+}
+.tt:not(.has-record) .tt-cover, .has-record .tt-stand-empty { display: none; }
+.tt .tt-glow { left: 0; top: 0; width: 1024px; height: 768px; opacity: 0.5; }
+.tt-info { -webkit-flex: 1; flex: 1; min-height: 0; padding: 18px 4px 0; overflow: hidden; }
+.tt-side { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #f0b25e; }
+.tt-album {
+  font-size: 23px; font-weight: 700; line-height: 1.15; margin-top: 8px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.tt-artist { font-size: 16px; opacity: 0.65; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tt-track {
-  font-size: 17px; line-height: 1.3; margin-top: 22px;
+  font-size: 16px; line-height: 1.3; margin-top: 14px;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .tt-time { font-size: 15px; opacity: 0.55; margin-top: 8px; }
@@ -166,23 +183,81 @@
 .tt .tt-volthumb { top: 12px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: #efe6d6; }
 
 /* ================= Bookshelf ================= */
-.shelf { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1c140e; color: #efe6d6; }
-.shelf-top {
-  position: absolute; top: 0; left: 0; right: 0; height: 12vmin; padding: 0 2vmin 0 14vmin;
-  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
-  background: #110b07; box-shadow: 0 0.5vmin 2vmin rgba(0, 0, 0, 0.5); z-index: 1;
+.shelf {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; color: #efe6d6;
+  background: radial-gradient(ellipse at 50% 0%, #2e1f14 0%, #150e09 70%);
 }
-.shelf-title { font-size: 4vmin; font-weight: 700; }
-.shelf-count { -webkit-flex: 1; flex: 1; font-size: 2.6vmin; opacity: 0.5; margin-left: 2vmin; }
-.shelf-sort button { font-size: 2.4vmin; padding: 1.6vmin 2.2vmin; }
+.shelf-top {
+  position: absolute; top: 0; left: 0; right: 0; height: 11vmin; padding: 0 2vmin 0 14vmin;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  background: #100a06; z-index: 1;
+}
+.shelf-title { font-size: 4vmin; font-weight: 800; letter-spacing: -0.01em; }
+.shelf-count { -webkit-flex: 1; flex: 1; font-size: 2.6vmin; opacity: 0.5; margin-left: 2vmin; white-space: nowrap; }
+.shelf-search {
+  -webkit-flex: 0 1 42vmin; flex: 0 1 42vmin; min-width: 0; height: 7.4vmin; margin: 0 0 0 2vmin; padding: 0 2.2vmin;
+  border-radius: 999px; background: rgba(255, 255, 255, 0.09);
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+}
+.shelf-search svg { width: 3.4vmin; height: 3.4vmin; opacity: 0.55; -webkit-flex: none; flex: none; }
+.shelf-search input {
+  -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 1.4vmin; padding: 0; border: 0; outline: none;
+  background: none; color: inherit; font: inherit; font-size: 2.6vmin; -webkit-appearance: none;
+  -webkit-user-select: text; user-select: text;
+}
+.shelf-search input::-webkit-input-placeholder { color: rgba(239, 230, 214, 0.45); }
+.shelf-bar {
+  position: absolute; top: 11vmin; left: 0; right: 0; height: 9vmin; padding: 0 3vmin; z-index: 1;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  background: #100a06; box-shadow: 0 0.6vmin 2vmin rgba(0, 0, 0, 0.55);
+}
+.shelf-bar .seg button { font-size: 2.3vmin; padding: 1.4vmin 2.4vmin; }
 .shelf-close, .sleeve-close { width: 9vmin; height: 9vmin; }
-.shelf-close { margin-left: 2vmin; }
+.shelf-close { margin-left: 1.5vmin; -webkit-flex: none; flex: none; }
 .shelf-close svg, .sleeve-close svg { width: 4.5vmin; height: 4.5vmin; }
 .shelf-body {
-  position: absolute; top: 12vmin; bottom: 0; left: 0; right: 0; padding: 3vmin 3vmin 8vmin;
+  position: absolute; top: 20vmin; bottom: 0; left: 0; right: 0; padding: 3vmin 3vmin 8vmin;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
 }
 .has-rail .shelf-body { right: 6vmin; }
+
+/* Covers: face-out on display shelves, each with a tag on the shelf edge. */
+.shelf-rack.is-covers {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  -webkit-align-items: end; align-items: end; background-image: none; margin: 0 -1.5vmin;
+}
+.cover { position: relative; padding: 3.4vmin 1.8vmin 0; }
+.cover-art {
+  position: relative; padding-top: 100%; border-radius: 0.4vmin; overflow: hidden; z-index: 1;
+  background: #2a2119;
+  box-shadow: 0 1.4vmin 2.6vmin rgba(0, 0, 0, 0.55), 0 0.2vmin 0.4vmin rgba(0, 0, 0, 0.5);
+  -webkit-transform-origin: 50% 100%; transform-origin: 50% 100%;
+  -webkit-transition: -webkit-transform 0.22s ease; transition: transform 0.22s ease;
+}
+.cover-art img {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+  opacity: 0; -webkit-transition: opacity 0.35s; transition: opacity 0.35s;
+}
+.cover-art img.loaded { opacity: 1; }
+/* Light catching the shrink-wrap */
+.cover-art:after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(125deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0) 38%);
+}
+.cover.seven .cover-art { width: 62%; padding-top: 62%; margin: 0 auto; }
+.cover.pulled .cover-art { -webkit-transform: translateY(-2.5vmin) scale(1.05); transform: translateY(-2.5vmin) scale(1.05); }
+.cover-plank {
+  display: block; height: 2.2vmin; margin: 0 -1.8vmin;
+  background: linear-gradient(#a06a40, #774b28 50%, #4d2f17);
+}
+.cover-tag {
+  margin: 0 -1.8vmin; padding: 1.1vmin 2vmin 2.6vmin;
+  background: linear-gradient(#3b2515, #24160b); box-shadow: 0 1.2vmin 1.6vmin rgba(0, 0, 0, 0.45);
+}
+.cover-name, .cover-artist { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cover-name { font-size: 2.1vmin; font-weight: 700; }
+.cover-artist { font-size: 1.8vmin; opacity: 0.6; margin-top: 0.3vmin; }
 
 /* Each row is 30vmin of records standing on a 3vmin plank. */
 .shelf-rack {
@@ -213,7 +288,7 @@
 .shelf-note { width: 100%; padding: 8vmin 2vmin; font-size: 3vmin; text-align: center; opacity: 0.6; }
 
 .shelf-rail {
-  position: absolute; top: 12vmin; bottom: 0; right: 0; width: 6vmin; padding: 1vmin 0;
+  position: absolute; top: 20vmin; bottom: 0; right: 0; width: 6vmin; padding: 1vmin 0;
   display: none; -webkit-flex-direction: column; flex-direction: column;
   background: rgba(0, 0, 0, 0.25);
 }
@@ -223,17 +298,39 @@
 
 /* ================= Sleeve ================= */
 .sleeve {
-  position: fixed; top: 0; left: 0; right: 0; bottom: 0; padding: 4vmin;
-  background: rgba(14, 10, 7, 0.95);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; padding: 4vmin;
+  background: #0e0a07;
   display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
   -webkit-justify-content: center; justify-content: center;
 }
+/* The cover, with the record sliding out of it to the right. */
+.sleeve-art { position: relative; width: 50vmin; height: 50vmin; -webkit-flex: none; flex: none; margin-right: 25vmin; }
 .sleeve-front {
-  width: 76vmin; height: 76vmin; -webkit-flex: none; flex: none; object-fit: cover;
-  border-radius: 0.6vmin; background: #2a221b; box-shadow: 0 3vmin 8vmin rgba(0, 0, 0, 0.7);
+  position: relative; display: block; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+  border-radius: 0.5vmin; background: #2a221b; box-shadow: 0 3vmin 7vmin rgba(0, 0, 0, 0.7);
 }
+.sleeve-disc {
+  position: absolute; top: 2%; left: 2%; width: 96%; height: 96%; border-radius: 50%;
+  background: repeating-radial-gradient(circle, #121213 0, #121213 0.5vmin, #1e1e20 0.65vmin, #121213 0.9vmin);
+  box-shadow: 0 2vmin 5vmin rgba(0, 0, 0, 0.6), inset 0 0 0 0.5vmin #0b0b0c;
+  -webkit-transition: -webkit-transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.sleeve.out .sleeve-disc { -webkit-transform: translateX(47%) rotate(50deg); transform: translateX(47%) rotate(50deg); }
+.sleeve-disc:after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 50%;
+  background: linear-gradient(125deg, transparent 30%, rgba(255, 255, 255, 0.08) 45%, transparent 55%);
+}
+.sleeve-label {
+  position: absolute; top: 33%; left: 33%; width: 34%; height: 34%; border-radius: 50%;
+  background: #5a4632 center / cover; box-shadow: 0 0 0 0.5vmin rgba(0, 0, 0, 0.5);
+}
+.sleeve-label:after {
+  content: ''; position: absolute; top: 47%; left: 47%; width: 6%; height: 6%; border-radius: 50%; background: #0b0b0c;
+}
+.sleeve-disc.seven .sleeve-label { top: 26%; left: 26%; width: 48%; height: 48%; }
 .sleeve-back {
-  position: relative; -webkit-flex: 0 1 62vmin; flex: 0 1 62vmin; min-width: 0; height: 76vmin; margin-left: 4vmin;
+  position: relative; -webkit-flex: 0 1 60vmin; flex: 0 1 60vmin; min-width: 0; height: 80vmin;
   padding: 3vmin 3vmin 2vmin; border-radius: 0.6vmin; background: #ece3d1; color: #2a2118;
   display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
   box-shadow: 0 3vmin 8vmin rgba(0, 0, 0, 0.7);
@@ -265,6 +362,6 @@
 
 @media (orientation: portrait) {
   .sleeve { -webkit-flex-direction: column; flex-direction: column; }
-  .sleeve-front { width: 46vmin; height: 46vmin; }
-  .sleeve-back { -webkit-flex: 1; flex: 1; width: 100%; height: auto; margin: 3vmin 0 0; }
+  .sleeve-art { width: 40vmin; height: 40vmin; margin: 0 15vmin 0 0; }
+  .sleeve-back { -webkit-flex: 1; flex: 1; width: 100%; height: auto; margin: 4vmin 0 0; }
 }

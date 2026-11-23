@@ -45,17 +45,30 @@
     <div class="shelf-top">
       <span class="shelf-title">Records</span>
       <span id="shelf-count" class="shelf-count"></span>
+      <form id="shelf-filter-form" class="shelf-search" action="#">
+        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+        <input id="shelf-filter" type="search" placeholder="Find a record"
+          autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      </form>
+      <button id="shelf-close" class="ctl shelf-close" aria-label="Close the shelf"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="shelf-bar">
+      <span class="seg">
+        <button data-shelf-view="covers">Covers</button><button data-shelf-view="spines">Spines</button>
+      </span>
       <span class="seg shelf-sort">
         <button data-shelf-sort="added">Recently added</button><button data-shelf-sort="artist">Artist</button><button data-shelf-sort="title">Title</button>
       </span>
-      <button id="shelf-close" class="ctl shelf-close" aria-label="Close the shelf"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div id="shelf-body" class="shelf-body scroll"><div id="shelf-rack" class="shelf-rack"></div></div>
     <div id="shelf-rail" class="shelf-rail"></div>
   </section>
 
   <section id="sleeve" class="sleeve hidden">
-    <img id="sleeve-front" class="sleeve-front" alt="">
+    <div class="sleeve-art">
+      <div id="sleeve-disc" class="sleeve-disc"><i id="sleeve-label" class="sleeve-label"></i></div>
+      <img id="sleeve-front" class="sleeve-front" alt="">
+    </div>
     <div class="sleeve-back">
       <button id="sleeve-close" class="ctl sleeve-close" aria-label="Back to the shelf"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
       <div id="sleeve-title" class="sleeve-title"></div>
@@ -202,6 +215,7 @@
        platter and tonearm and runs them; data-rec marks its buttons and texts. -->
   <template id="tpl-turntable">
     <div class="tt">
+      <i class="tt-glow"></i>
       <div class="tt-plinth"></div>
       <div class="tt-mat" data-rec="platter"><span class="tt-hint">Tap to choose a record</span></div>
       <div class="tt-flip"><canvas class="tt-vinyl"></canvas></div>
@@ -218,6 +232,7 @@
         <button class="tt-btn tt-records" data-rec="shelf">
           <svg viewBox="0 0 24 24"><path d="M3 4h3v16H3zm4.5 0h3v16h-3zm4.6.6l2.9-.8 4.2 15.4-2.9.8z"/></svg>Records
         </button>
+        <div class="tt-stand"><img class="tt-cover" alt=""><span class="tt-stand-empty">No record</span></div>
         <div class="tt-info">
           <div class="tt-side" data-rec-t="side"></div>
           <div class="tt-album" data-rec-t="album"></div>

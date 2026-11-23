@@ -12,6 +12,7 @@ var Records = (function () {
   var SHELF_KEY = 'deck.shelf';
   var COLORS_KEY = 'deck.spineColors';
   var SORT_KEY = 'deck.shelfSort';
+  var VIEW_KEY = 'deck.shelfView';
   var MAX_ALBUMS = 1000;
   var SIDE_MAX_MS = 25 * 60 * 1000;   // a longer disc is cut into more records, like a real LP
   var SHELF_TIMEOUT_MS = 2 * 60 * 1000;
@@ -310,7 +311,8 @@ var Records = (function () {
     stopSound();
     rec = {
       id: album.id, uri: album.uri, name: album.name, artist: album.artist, year: album.year,
-      art: album.big || album.small, seven: built.seven, sides: built.sides, side: sideIndex
+      art: album.big || album.small, seven: built.seven, sides: built.sides, side: sideIndex,
+      color: shelf.colors[album.id] || null
     };
     arm.on = arm.down = false;
     setArmMs(0);
@@ -388,6 +390,11 @@ var Records = (function () {
     var has = !!rec;
     toggle(root, 'has-record', has);
     toggle(root, 'is-seven', has && rec.seven);
+    // The sleeve stands in the panel, and the room takes on the cover's colour.
+    if (has && rec.art) els.cover.src = rec.art;
+    else els.cover.removeAttribute('src');
+    els.glow.style.background = has && rec.color
+      ? 'radial-gradient(ellipse at 50% 45%, ' + rec.color.bg + ' 0%, rgba(18, 13, 9, 0) 70%)' : '';
     if (!has) return;
     var g = geom(), s = side();
     var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -529,6 +536,8 @@ var Records = (function () {
       sheen: r.querySelector('.tt-sheen'),
       arm: r.querySelector('.tt-arm'),
       elsewhere: r.querySelector('.tt-elsewhere'),
+      cover: r.querySelector('.tt-cover'),
+      glow: r.querySelector('.tt-glow'),
       texts: {}
     };
     Array.prototype.forEach.call(r.querySelectorAll('[data-rec-t]'), function (e) {
@@ -573,7 +582,10 @@ var Records = (function () {
   function unmount() { root = null; drag = null; }
 
   // ---- bookshelf ------------------------------------------------------------
-  var shelf = { albums: null, sort: 'added', seq: 0, timer: null, observer: null, colors: {}, queue: [], busy: 0 };
+  var shelf = {
+    albums: null, sort: 'added', view: 'covers', filter: '', seq: 0, timer: null,
+    observer: null, artObserver: null, colors: {}, queue: [], busy: 0
+  };
   var sleeve = { album: null, spine: null };
 
   function slim(item) {
@@ -597,6 +609,9 @@ var Records = (function () {
   }
 
   function openShelf() {
+    // Start without a filter: on a kiosk the last search could be hours old.
+    $('shelf-filter').value = '';
+    shelf.filter = '';
     toggle($('shelf'), 'hidden', false);
     bumpShelf();
     if (shelf.albums) renderShelf();
@@ -666,47 +681,104 @@ var Records = (function () {
     });
   }
 
+  function isSeven(a) { return a.type === 'single' && a.tracks <= 4; }
+
+  function matches(a) {
+    var q = shelf.filter;
+    return !q || a.name.toLowerCase().indexOf(q) > -1 || a.artist.toLowerCase().indexOf(q) > -1;
+  }
+
+  // Two ways to browse: covers face-out on display shelves, or spines packed on a bookshelf.
   function renderShelf() {
     var rack = $('shelf-rack');
-    var albums = sorted();
+    var albums = sorted().filter(matches);
     if (shelf.observer) shelf.observer.disconnect();
+    if (shelf.artObserver) shelf.artObserver.disconnect();
     shelf.queue = [];
     rack.innerHTML = '';
-    $('shelf-count').textContent = albums.length ? albums.length + (albums.length === 1 ? ' record' : ' records') : '';
+    rack.className = 'shelf-rack is-' + shelf.view;
+    var total = shelf.albums.length;
+    $('shelf-count').textContent = !total ? '' : shelf.filter ? albums.length + ' of ' + total
+      : total + (total === 1 ? ' record' : ' records');
     Array.prototype.forEach.call(document.querySelectorAll('[data-shelf-sort]'), function (b) {
       toggle(b, 'on', b.getAttribute('data-shelf-sort') === shelf.sort);
     });
+    Array.prototype.forEach.call(document.querySelectorAll('[data-shelf-view]'), function (b) {
+      toggle(b, 'on', b.getAttribute('data-shelf-view') === shelf.view);
+    });
+    rack._albums = albums;
     if (!albums.length) {
-      rack.innerHTML = '<div class="shelf-note">No saved albums yet. Save albums in Spotify and they’ll show up here.</div>';
+      rack.innerHTML = '<div class="shelf-note">' + (total
+        ? 'No records match “' + escapeHtml(shelf.filter) + '”.'
+        : 'No saved albums yet. Save albums in Spotify and they’ll show up here.') + '</div>';
       renderRail([]);
       return;
     }
-    var frag = document.createDocumentFragment(), seen = {}, letters = [], uncolored = [];
+    var frag = document.createDocumentFragment(), seen = {}, letters = [], uncolored = [], covers = [];
     albums.forEach(function (a, i) {
-      var spine = el('div', 'spine');
-      spine.setAttribute('data-i', i);
-      // Thicker for albums with more tracks, shorter for 7" singles.
-      spine.style.width = Math.max(2.6, Math.min(6, 2.2 + a.tracks * 0.17)).toFixed(2) + 'vmin';
-      if (a.type === 'single' && a.tracks <= 4) spine.className += ' seven';
-      var face = el('div', 'spine-face');
-      var text = el('div', 'spine-text');
-      text.appendChild(el('b', '', a.artist));
-      text.appendChild(document.createTextNode('  ' + a.name));
-      face.appendChild(text);
-      spine.appendChild(face);
-      var c = shelf.colors[a.id];
-      if (c) paintSpine(spine, c);
-      else uncolored.push(spine);
+      var item = shelf.view === 'covers' ? makeCover(a) : makeSpine(a);
+      item.setAttribute('data-i', i);
+      if (shelf.view === 'covers') covers.push(item);
+      else if (!shelf.colors[a.id]) uncolored.push(item);
       if (shelf.sort !== 'added') {
         var l = letterOf(a);
-        if (!seen[l]) { seen[l] = true; letters.push(l); spine.setAttribute('data-letter', l); }
+        if (!seen[l]) { seen[l] = true; letters.push(l); item.setAttribute('data-letter', l); }
       }
-      frag.appendChild(spine);
+      frag.appendChild(item);
     });
     rack.appendChild(frag);
-    rack._albums = albums;
     renderRail(letters);
     if (shelf.observer) uncolored.forEach(function (s) { shelf.observer.observe(s); });
+    if (shelf.artObserver) covers.forEach(function (c) { shelf.artObserver.observe(c); });
+    else covers.forEach(function (c) { loadCover(c, true); });
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+
+  function makeSpine(a) {
+    var spine = el('div', 'spine' + (isSeven(a) ? ' seven' : ''));
+    // Thicker for albums with more tracks, shorter for 7" singles.
+    spine.style.width = Math.max(2.6, Math.min(6, 2.2 + a.tracks * 0.17)).toFixed(2) + 'vmin';
+    var face = el('div', 'spine-face');
+    var text = el('div', 'spine-text');
+    text.appendChild(el('b', '', a.artist));
+    text.appendChild(document.createTextNode('  ' + a.name));
+    face.appendChild(text);
+    spine.appendChild(face);
+    if (shelf.colors[a.id]) paintSpine(spine, shelf.colors[a.id]);
+    return spine;
+  }
+
+  // A cover standing face-out on a shelf, with a tag on the shelf edge.
+  function makeCover(a) {
+    var cell = el('div', 'cover' + (isSeven(a) ? ' seven' : ''));
+    var art = el('div', 'cover-art');
+    if (shelf.colors[a.id]) art.style.backgroundColor = shelf.colors[a.id].bg;
+    var img = el('img');
+    img.alt = '';
+    img._src = a.big || a.small;
+    img.onload = function () { toggle(img, 'loaded', true); };
+    art.appendChild(img);
+    cell.appendChild(art);
+    cell.appendChild(el('i', 'cover-plank'));
+    var tag = el('div', 'cover-tag');
+    tag.appendChild(el('div', 'cover-name', a.name));
+    tag.appendChild(el('div', 'cover-artist', a.artist));
+    cell.appendChild(tag);
+    return cell;
+  }
+
+  // Covers load as they come near the screen and let go of their image once far away, so a
+  // big library doesn't fill the iPad's 1 GB.
+  function loadCover(cell, on) {
+    var img = cell.firstChild.firstChild;
+    if (on && !img.getAttribute('src') && img._src) img.src = img._src;
+    if (!on && img.getAttribute('src')) {
+      img.removeAttribute('src');
+      toggle(img, 'loaded', false);
+    }
   }
 
   function renderRail(letters) {
@@ -794,6 +866,19 @@ var Records = (function () {
     var img = $('sleeve-front');
     img.removeAttribute('src');
     if (a.big) img.src = a.big;
+    // The record peeks out of the sleeve, its label printed with the cover.
+    $('sleeve-label').style.backgroundImage = a.big ? 'url("' + a.big + '")' : '';
+    toggle($('sleeve-disc'), 'seven', isSeven(a));
+    toggle($('sleeve'), 'out', false);
+    setTimeout(function () { if (sleeve.album === a) toggle($('sleeve'), 'out', true); }, 80);
+    tintSleeve(shelf.colors[a.id]);
+    if (!shelf.colors[a.id]) {
+      colorFor(a, function (c) {
+        if (!c) return;
+        shelf.colors[a.id] = c;
+        if (sleeve.album === a) tintSleeve(c);
+      });
+    }
     $('sleeve-title').textContent = a.name;
     $('sleeve-artist').textContent = a.artist + (a.year ? ' · ' + a.year : '');
     var box = $('sleeve-sides');
@@ -840,6 +925,11 @@ var Records = (function () {
     });
   }
 
+  function tintSleeve(c) {
+    $('sleeve').style.background = c
+      ? 'radial-gradient(circle at 30% 40%, ' + c.bg + ' 0%, #0e0a07 75%)' : '';
+  }
+
   function closeSleeve() {
     sleeve.album = null;
     if (sleeve.spine) toggle(sleeve.spine, 'pulled', false);
@@ -851,6 +941,7 @@ var Records = (function () {
     shelf.albums = read(SHELF_KEY);
     shelf.colors = read(COLORS_KEY) || {};
     shelf.sort = read(SORT_KEY) || 'added';
+    shelf.view = read(VIEW_KEY) === 'spines' ? 'spines' : 'covers';
     if (window.IntersectionObserver) {
       shelf.observer = new IntersectionObserver(function (entries) {
         entries.forEach(function (en) {
@@ -860,7 +951,33 @@ var Records = (function () {
         });
         pumpColors();
       }, { root: $('shelf-body'), rootMargin: '200px 0px' });
+      shelf.artObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { loadCover(en.target, en.isIntersecting); });
+      }, { root: $('shelf-body'), rootMargin: '700px 0px' });
     }
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-shelf-view]'), function (b) {
+      b.addEventListener('click', function () {
+        shelf.view = b.getAttribute('data-shelf-view');
+        write(VIEW_KEY, shelf.view);
+        $('shelf-body').scrollTop = 0;
+        if (shelf.albums) renderShelf();
+      });
+    });
+    // Find a record: filters by title or artist as you type.
+    var filter = $('shelf-filter'), filterTimer = null;
+    filter.addEventListener('input', function () {
+      bumpShelf();
+      clearTimeout(filterTimer);
+      filterTimer = setTimeout(function () {
+        shelf.filter = filter.value.replace(/^\s+|\s+$/g, '').toLowerCase();
+        $('shelf-body').scrollTop = 0;
+        if (shelf.albums) renderShelf();
+      }, 200);
+    });
+    $('shelf-filter-form').addEventListener('submit', function (e) { e.preventDefault(); filter.blur(); });
+    // iOS 12 can leave the page pushed up after the keyboard closes.
+    filter.addEventListener('blur', function () { window.scrollTo(0, 0); });
 
     $('shelf-close').addEventListener('click', closeShelf);
     $('sleeve-close').addEventListener('click', closeSleeve);
@@ -877,7 +994,7 @@ var Records = (function () {
     });
     // Pull a record out: it slides up, then the sleeve opens.
     $('shelf-rack').addEventListener('click', function (e) {
-      var spine = e.target.closest && e.target.closest('.spine');
+      var spine = e.target.closest && e.target.closest('.spine, .cover');
       var a = spine && $('shelf-rack')._albums[Number(spine.getAttribute('data-i'))];
       if (!a) return;
       toggle(spine, 'pulled', true);
@@ -901,6 +1018,15 @@ var Records = (function () {
     rec = read(RECORD_KEY);
     if (rec && !(rec.sides && rec.sides[rec.side])) rec = null;
     setupShelf();
+    if (rec && !rec.color) {
+      var r = rec;
+      colorFor({ small: r.art }, function (c) {
+        if (!c || rec !== r) return;
+        rec.color = c;
+        save();
+        drawVinyl();
+      });
+    }
     window.addEventListener('mousemove', dragMove);
     window.addEventListener('mouseup', dragEnd);
     window.addEventListener('resize', scale);
