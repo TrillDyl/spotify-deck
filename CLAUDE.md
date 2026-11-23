@@ -20,6 +20,13 @@ Home Screen and later hard-locked as a kiosk.
   a search box on top for songs. Tap a song to play it within its album,
   or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
   falls back to asking which device to play on
+- **Record player mode** (Settings → Mode): a bookshelf of saved albums (`GET /me/albums`), a
+  sleeve showing each side, and a turntable. Albums split into sides by disc and length (7" for
+  short singles). A side plays as a `uris` list with shuffle and repeat off. Sound only plays
+  with the platter on (Start/Stop) and the needle down; the tonearm is the only way to change
+  songs. A side ends in the run-out groove (manual arm), and Flip needs the arm at rest. If
+  Autoplay starts a song after the side, the deck pauses it. Code: `js/records.js`,
+  `css/records.css`
 - Update on its own when the track changes, with no user action
 - Idle state when nothing is playing: a dimmed clock, never a blank page or an error
 
@@ -133,6 +140,8 @@ js/config.js        CLIENT_ID, polling and timeout settings (edit this)
 js/auth.js          PKCE login, callback handling, token storage and refresh, QR pairing
 js/spotify.js       thin API wrapper: auth headers, 401 retry, 429 backoff
 js/deck.js          polling loop, layout, controls, picker, long-press settings
+js/records.js       record player mode: shelf, sleeve, sides, turntable and tonearm
+css/records.css     record player styles (turntable drawn at 1024×768 and scaled)
 docs/               setup and lockdown guides for Dylan
 serve.sh            local static server on 127.0.0.1:8888
 ```

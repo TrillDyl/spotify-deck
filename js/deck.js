@@ -65,7 +65,7 @@
     if (state.view === view) return;
     state.view = view;
     ['login', 'deck', 'idle'].forEach(function (s) { toggle($(s), 'hidden', s !== view); });
-    if (view === 'idle') { closeSheets(); tickClock(true); }
+    if (view === 'idle') { closeSheets(); Records.closeShelf(); tickClock(true); }
     if (view === 'deck') paint();
   }
 
@@ -76,6 +76,7 @@
     s = s || {};
     if (s.dim === undefined) s.dim = 0;
     if (s.idleDim === undefined) s.idleDim = 0;
+    if (s.mode !== 'record') s.mode = 'classic';
     delete s.theme;  // left over from when there were several layouts
     return s;
   }
@@ -92,13 +93,18 @@
   }
 
   // ---- layout ---------------------------------------------------------------
+  // Classic, or the record player (Settings → Mode), which js/records.js runs.
   function buildLayout() {
+    var record = settings.mode === 'record';
     var stage = $('deck');
     stage.innerHTML = '';
-    var root = document.importNode($('tpl-classic').content, true).firstElementChild;
+    Records.unmount();
+    Records.closeShelf();
+    var root = document.importNode($(record ? 'tpl-turntable' : 'tpl-classic').content, true).firstElementChild;
     stage.appendChild(root);
     layout = {
       root: root,
+      record: record,
       texts: list(root, '[data-t]'),
       progs: list(root, '[data-p]'),
       vols: list(root, '[data-v]'),
@@ -106,12 +112,16 @@
       arts: list(root, 'img[data-art]'),
       queueList: root.querySelector('[data-queue-list]')
     };
+    toggle(stage, 'is-record', record);
+    toggle($('bg0'), 'hidden', record);
+    toggle($('bg1'), 'hidden', record);
     setupVolumeControls(root);
     setupSeekControls(root);
-    setupQueueList(layout.queueList);
+    if (layout.queueList) setupQueueList(layout.queueList);
+    if (record) Records.mount(root);
     renderQueueList();
     paintArt();
-    paintBackground(state.art.small);
+    if (!record) paintBackground(state.art.small);
     paint();
     state.queueAt = 0;
     loadQueue();
@@ -186,6 +196,7 @@
     layout.progs.forEach(function (el) { meter(el, el.getAttribute('data-p'), r); });
     var vr = (state.volume || 0) / 100;
     layout.vols.forEach(function (el) { meter(el, el.getAttribute('data-v'), vr); });
+    if (layout.record) Records.paint();
   }
 
   function setImg(el, url) {
@@ -273,11 +284,14 @@
   function render(p) {
     var item = p && p.item;
     if (p && p.device && p.device.id) state.deviceId = p.device.id;
+    if (layout && layout.record) Records.onPlayer(p);
     if (!item) {
       state.uri = null;
       state.item = null;
       state.playing = false;
-      show('idle');
+      // The record player keeps its record on screen until the idle timeout.
+      if (layout && layout.record) settle();
+      else show('idle');
       return;
     }
 
@@ -307,11 +321,15 @@
       state.pausedSince = 0;
       show('deck');
     } else {
-      if (!state.pausedSince) state.pausedSince = Date.now();
-      var since = Math.max(state.pausedSince, state.wokeAt);
-      show(Date.now() - since > C.IDLE_AFTER_PAUSE_MS ? 'idle' : 'deck');
+      settle();
     }
     paint();
+  }
+
+  function settle() {
+    if (!state.pausedSince) state.pausedSince = Date.now();
+    var since = Math.max(state.pausedSince, state.wokeAt);
+    show(Date.now() - since > C.IDLE_AFTER_PAUSE_MS ? 'idle' : 'deck');
   }
 
   function newItem(item) {
@@ -325,7 +343,7 @@
     };
     if (layout) toggle(layout.root, 'is-skipping', false);
     paintArt();
-    paintBackground(state.art.small);
+    if (!layout || !layout.record) paintBackground(state.art.small);
 
     // A song removed from Up next has come up: skip it.
     if (!state.jumping && takeSkip(item.uri)) Spotify.next().then(afterAction, function () {});
@@ -338,10 +356,10 @@
     loadQueue();
   }
 
-  // The queue, only while Up next is open.
+  // The queue, only while Classic's Up next is open.
   function loadQueue() {
     var now = Date.now();
-    if (settings.showQueue && state.item && now - state.queueAt > 2 * 60 * 1000) {
+    if (layout && layout.queueList && settings.showQueue && state.item && now - state.queueAt > 2 * 60 * 1000) {
       state.queueAt = now;
       Spotify.getQueue().then(setQueue, function () {});
     }
@@ -394,7 +412,7 @@
   var openRow = null;  // the Up next row showing its Remove button
 
   function renderQueueList() {
-    if (!layout) return;
+    if (!layout || !layout.queueList) return;
     var listEl = layout.queueList;
     // Rebuilding resets the scroll position and reloads art, so skip it when nothing changed.
     var key = state.queue.map(function (q) { return q.uri; }).join(' ');
@@ -1138,9 +1156,10 @@
     });
     $('login-btn').addEventListener('click', function () { DeckAuth.login(); });
 
-    // Tapping the idle clock brings back a paused track, or opens Browse to start something.
+    // Tapping the idle clock brings back a paused track or the turntable, or opens Browse to
+    // start something.
     $('idle').addEventListener('click', function () {
-      if (state.uri) { state.wokeAt = Date.now(); show('deck'); }
+      if (state.uri || layout.record) { state.wokeAt = Date.now(); show('deck'); }
       else openBrowse();
     });
 
@@ -1172,6 +1191,7 @@
         var key = this.getAttribute('data-setting'), raw = this.getAttribute('data-value');
         settings[key] = /^\d+$/.test(raw) ? Number(raw) : raw;
         saveSettings();
+        if (key === 'mode') buildLayout();
       });
     });
     $('devices-btn').addEventListener('click', function () { openDevices(); });
@@ -1185,6 +1205,15 @@
     setupSettingsHotspot();
     setupControls();
     applySettings();
+    Records.init({
+      state: state,
+      toast: toast,
+      actionError: actionError,
+      afterAction: afterAction,
+      isNoDevice: isNoDevice,
+      openDevices: openDevices,
+      wake: function () { state.wokeAt = Date.now(); }  // using the turntable holds off the idle clock
+    });
     buildLayout();
     setInterval(tick, 1000);
 

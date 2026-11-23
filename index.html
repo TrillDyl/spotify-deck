@@ -10,6 +10,7 @@
   <meta name="format-detection" content="telephone=no">
   <title>Spotify Deck</title>
   <link rel="stylesheet" href="css/deck.css">
+  <link rel="stylesheet" href="css/records.css">
 </head>
 <body>
   <!-- Album-art background: two tiny canvases, scaled up and crossfaded -->
@@ -36,6 +37,31 @@
     <div id="clock" class="clock">
       <div id="clock-time" class="clock-time"></div>
       <div id="clock-date" class="clock-date"></div>
+    </div>
+  </section>
+
+  <!-- Record player: the bookshelf of saved albums, and a record's sleeve (js/records.js) -->
+  <section id="shelf" class="shelf hidden">
+    <div class="shelf-top">
+      <span class="shelf-title">Records</span>
+      <span id="shelf-count" class="shelf-count"></span>
+      <span class="seg shelf-sort">
+        <button data-shelf-sort="added">Recently added</button><button data-shelf-sort="artist">Artist</button><button data-shelf-sort="title">Title</button>
+      </span>
+      <button id="shelf-close" class="ctl shelf-close" aria-label="Close the shelf"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div id="shelf-body" class="shelf-body scroll"><div id="shelf-rack" class="shelf-rack"></div></div>
+    <div id="shelf-rail" class="shelf-rail"></div>
+  </section>
+
+  <section id="sleeve" class="sleeve hidden">
+    <img id="sleeve-front" class="sleeve-front" alt="">
+    <div class="sleeve-back">
+      <button id="sleeve-close" class="ctl sleeve-close" aria-label="Back to the shelf"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+      <div id="sleeve-title" class="sleeve-title"></div>
+      <div id="sleeve-artist" class="sleeve-artist"></div>
+      <div id="sleeve-format" class="sleeve-format"></div>
+      <div id="sleeve-sides" class="sleeve-sides scroll"></div>
     </div>
   </section>
 
@@ -85,6 +111,12 @@
       <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="sheet-body scroll">
+      <div class="row">
+        <span class="row-label">Mode</span>
+        <span class="seg">
+          <button data-setting="mode" data-value="classic">Classic</button><button data-setting="mode" data-value="record">Record player</button>
+        </span>
+      </div>
       <div class="row">
         <span class="row-label">Dim screen</span>
         <span class="seg">
@@ -166,9 +198,57 @@
     </div>
   </template>
 
+  <!-- Record player: drawn at 1024×768 and scaled to the screen. js/records.js places the
+       platter and tonearm and runs them; data-rec marks its buttons and texts. -->
+  <template id="tpl-turntable">
+    <div class="tt">
+      <div class="tt-plinth"></div>
+      <div class="tt-mat" data-rec="platter"><span class="tt-hint">Tap to choose a record</span></div>
+      <div class="tt-flip"><canvas class="tt-vinyl"></canvas></div>
+      <i class="tt-sheen"></i>
+      <i class="tt-spindle"></i>
+      <i class="tt-armrest"></i>
+      <i class="tt-armbase"></i>
+      <div class="tt-arm"><i class="tt-weight"></i><i class="tt-tube"></i><i class="tt-head"></i><i class="tt-grab"></i></div>
+      <button class="tt-start" data-rec="motor" aria-label="Start or stop the platter">
+        <i class="tt-led"></i><span class="lbl-start">Start</span><span class="lbl-stop">Stop</span>
+      </button>
+      <div class="tt-speed"><span class="sp-33">33⅓</span><span class="sp-45">45</span></div>
+      <div class="tt-panel">
+        <button class="tt-btn tt-records" data-rec="shelf">
+          <svg viewBox="0 0 24 24"><path d="M3 4h3v16H3zm4.5 0h3v16h-3zm4.6.6l2.9-.8 4.2 15.4-2.9.8z"/></svg>Records
+        </button>
+        <div class="tt-info">
+          <div class="tt-side" data-rec-t="side"></div>
+          <div class="tt-album" data-rec-t="album"></div>
+          <div class="tt-artist" data-rec-t="artist"></div>
+          <div class="tt-track" data-rec-t="track"></div>
+          <div class="tt-time" data-rec-t="time"></div>
+        </div>
+        <div class="tt-elsewhere hidden">
+          <div class="tt-elsewhere-text" data-rec-t="elsewhere"></div>
+          <button class="tt-btn tt-small" data-action="play">Pause it</button>
+        </div>
+        <div class="tt-buttons">
+          <button class="tt-btn tt-cue" data-rec="cue">
+            <svg viewBox="0 0 24 24"><path d="M5 19h14v2H5zM11 3h2v11.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6z"/></svg><span data-rec-t="cue"></span>
+          </button>
+          <button class="tt-btn tt-flipbtn" data-rec="flip">
+            <svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 0 1 7.7 5.9l1.9-.6A10 10 0 0 0 4 7.3V4H2v7h7V9H5.1A8 8 0 0 1 12 4zm0 16a8 8 0 0 1-7.7-5.9l-1.9.6A10 10 0 0 0 20 16.7V20h2v-7h-7v2h3.9A8 8 0 0 1 12 20z"/></svg>Flip record
+          </button>
+        </div>
+        <div class="tt-vol" data-show="volume">
+          <svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 5V4L9 9H5z"/></svg>
+          <div class="tt-voltrack" data-vol-control role="slider" aria-label="Volume"><div class="tt-volfill" data-v="w"></div><i class="tt-volthumb" data-v="l"></i></div>
+        </div>
+      </div>
+    </div>
+  </template>
+
   <script src="js/config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/spotify.js"></script>
+  <script src="js/records.js"></script>
   <script src="js/deck.js"></script>
 </body>
 </html>

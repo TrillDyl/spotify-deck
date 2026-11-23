@@ -22,3 +22,8 @@ The deck is live at **https://trilldyl.github.io/spotify-deck/**. Add that exact
 Redirect URI in the same app settings. The trailing slash has to match exactly.
 
 Every push to `main` redeploys it within a minute or two.
+
+## Record player mode
+Turn off **Autoplay** in the Spotify app (Settings → Playback) on the device that plays the music,
+so a side ends in silence. If it's left on, the deck pauses the extra song as soon as it notices,
+but a second or two may play.

@@ -86,6 +86,13 @@ var Spotify = (function () {
     },
     getMe:           function ()            { return request('GET',  '/me'); },
     getMyPlaylists:  function (offset)      { return request('GET',  '/me/playlists?limit=50&offset=' + (offset || 0)); },
+    // Record player: saved albums and their tracks (both cap limit at 50).
+    getSavedAlbums:  function (offset)      { return request('GET',  '/me/albums?limit=50&offset=' + (offset || 0)); },
+    getAlbumTracks:  function (id, offset)  {
+      return request('GET', '/albums/' + encodeURIComponent(id) + '/tracks?limit=50&offset=' + (offset || 0));
+    },
+    setRepeat:       function (mode)        { return request('PUT',  '/me/player/repeat?state=' + mode); },
+    setShuffle:      function (on)          { return request('PUT',  '/me/player/shuffle?state=' + (on ? 'true' : 'false')); },
     addToPlaylist:   function (playlistId, uri) {
       return request('POST', '/playlists/' + encodeURIComponent(playlistId) + '/items', { uris: [uri] });
     },
