@@ -23,13 +23,5 @@ var DECK_CONFIG = {
   POLL_IDLE_MS: 10000,
   SETTINGS_LONG_PRESS_MS: 2000,
   IDLE_AFTER_PAUSE_MS: 5 * 60 * 1000,  // paused this long → idle clock
-  SHEET_TIMEOUT_MS: 45000,             // close an untouched picker or settings sheet
-
-  // Layout used until one is picked in settings: classic, cassette, hifi, turntable, terminal,
-  // handheld, dashboard, bigclock or poster.
-  DEFAULT_THEME: 'classic',
-
-  // Weather for the layouts that show it. Set your coordinates (e.g. lat: 40.71, lon: -74.01);
-  // leave them null to hide weather. units: 'fahrenheit' or 'celsius'.
-  WEATHER: { lat: 27.77, lon: -82.64, units: 'fahrenheit' }  // St. Petersburg, FL
+  SHEET_TIMEOUT_MS: 45000              // close an untouched picker or settings sheet
 };

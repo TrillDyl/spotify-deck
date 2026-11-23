@@ -31,10 +31,12 @@ svg { display: block; }
   -webkit-justify-content: center; justify-content: center;
 }
 
-/* ---- Now playing: the stage that holds the chosen layout ---- */
-#deck.stage-fixed { background: #000; }
+/* ---- Now playing ---- */
+/* Two-state icons */
+.i-pause, .i-heart-on { display: none; }
+.is-playing .i-play, .is-liked .i-heart-off { display: none; }
+.is-playing .i-pause, .is-liked .i-heart-on { display: block; }
 
-/* ---- Classic layout ---- */
 .t-classic {
   width: 100%; height: 100%; padding: 5vmin; background: rgba(0, 0, 0, 0.5);
   display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
@@ -264,15 +266,6 @@ svg { display: block; }
 .seg { display: -webkit-flex; display: flex; background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin; padding: 0.5vmin; }
 .seg button { font-size: 2.8vmin; padding: 1.6vmin 3vmin; border-radius: 1vmin; }
 .seg button.on { background: #fff; color: #000; }
-.sheet-body > .row-label { display: block; font-size: 3vmin; padding: 2vmin 0 1vmin; }
-.theme-picker {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-gap: 1vmin;
-  padding-bottom: 1vmin; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.theme-picker button {
-  padding: 2.2vmin 1vmin; font-size: 2.6vmin; border-radius: 1.2vmin; background: rgba(255, 255, 255, 0.08);
-}
-.theme-picker button.on { background: #fff; color: #000; }
 .wide-btn {
   display: block; width: 100%; margin-top: 1.5vmin; padding: 2.6vmin; font-size: 3vmin;
   background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin;

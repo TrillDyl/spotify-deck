@@ -10,12 +10,12 @@ Home Screen and later hard-locked as a kiosk.
   art, track title, artist, album, and a progress bar
 - Large touch controls: previous, play/pause, next, like (save to library)
 - **Add to playlist**: a picker listing the user's playlists, tap one to add the current track
-- **Classic layout extras**: a draggable progress bar (the song jumps when the finger lifts;
+- **Layout extras**: a draggable progress bar (the song jumps when the finger lifts;
   hidden handle when Spotify disallows seeking), elapsed and total time, a volume slider (hidden when the device can't change volume) and an
   Up next button. Up next is a scrolling list of the whole queue: tap a song to skip to it, swipe
   left to reveal **Remove**. The queue is only fetched while it's open, and the open/closed choice
   is saved per device
-- **Browse**: a sheet (button in every layout, or tap the idle clock) listing all the user's
+- **Browse**: a sheet (button on the now-playing screen, or tap the idle clock) listing all the user's
   playlists to play (their own and public ones they've saved, refetched each time it opens), with
   a search box on top for songs. Tap a song to play it within its album,
   or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
@@ -109,7 +109,7 @@ Player endpoints used (playback control needs Premium):
 - `PUT /v1/me/player/play?device_id=…` with `{context_uri, offset: {uri}}` or `{uris}`: Browse.
   Any playlist in the library can be played this way, even ones the user doesn't own
 - `POST /v1/me/player/queue?uri=…`: track or episode URIs only
-- `PUT /v1/me/player/seek?position_ms=…`: Classic's progress bar. `actions.disallows.seeking` in
+- `PUT /v1/me/player/seek?position_ms=…`: the progress bar. `actions.disallows.seeking` in
   `GET /me/player` says when it isn't allowed (ads, some speakers)
 - **The queue can't be edited or jumped into** (no remove, clear or skip-to-item endpoint, checked
   Nov 2026). So tapping a queued song calls `next` once per song before it, and Remove hides the
@@ -127,32 +127,25 @@ playlist-modify-public user-library-read user-library-modify`
 
 ## Layout
 ```
-index.html          single page: idle clock, sheets, hidden settings, and one <template> per layout
-css/deck.css        shared styles and the Classic layout
-css/themes.css      the other layouts (cassette, hifi, turntable, terminal, handheld, dashboard,
-                    bigclock, poster), each drawn at 1024×768 and scaled to the screen
-js/config.js        CLIENT_ID, default layout, weather coordinates (edit this)
+index.html          single page: idle clock, sheets, hidden settings, and the layout <template>
+css/deck.css        all styles
+js/config.js        CLIENT_ID, polling and timeout settings (edit this)
 js/auth.js          PKCE login, callback handling, token storage and refresh, QR pairing
 js/spotify.js       thin API wrapper: auth headers, 401 retry, 429 backoff
-js/weather.js       Open-Meteo forecast (no key), only when config has coordinates
-js/deck.js          polling loop, layout engine, controls, picker, long-press settings
+js/deck.js          polling loop, layout, controls, picker, long-press settings
 docs/               setup and lockdown guides for Dylan
 serve.sh            local static server on 127.0.0.1:8888
 ```
 
-## Layouts
-- Nine layouts, picked under Settings → Layout and saved per device. Mockups are on the
-  "Spotify Deck layouts" design canvas: https://claude.ai/artifact/Xz7h7fSqwvM8Uh3SLfWwBP
-- A layout is only a `<template id="tpl-NAME">` plus CSS. Its markup declares what it shows
-  (`data-t`, `data-p`, `data-v`, `data-show`, `data-art`, `data-pixel`, `data-action`,
-  `data-vol-control`, `data-fit`), and `js/deck.js` fills it in. The full list is in the comment at
-  the top of `deck.js`. To add a layout, add a template, its CSS and an entry in `THEMES`.
-- `data-needs="queue weather"` on a layout's root turns on those fetches only for that layout.
-  The queue (`GET /me/player/queue`) refreshes on track change and every 2 minutes. Weather
-  refreshes every 30 minutes.
-- Fonts come from Google Fonts and load only for the layout on screen.
-- The pixel-art covers redraw the real album art. Spotify's image CDN (`i.scdn.co`) sends
-  `Access-Control-Allow-Origin: *`, so `getImageData` works.
+## Layout
+- One layout (Classic): album art on the left, a blurred album-art background, details and
+  controls on the right. The other eight layouts were removed in Nov 2026.
+- It's a `<template id="tpl-classic">` plus CSS. Its markup declares what it shows (`data-t`,
+  `data-p`, `data-v`, `data-show`, `data-art`, `data-action`, `data-vol-control`,
+  `data-seek-control`, `data-queue-list`), and `js/deck.js` fills it in. The full list is in the
+  comment at the top of `deck.js`.
+- The queue (`GET /me/player/queue`) is fetched only while Up next is open, and refreshes on track
+  change and every 2 minutes.
 
 ## Milestones
 Milestones 1–4 are built and pass in Chrome against mocked API responses. A real login reached

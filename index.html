@@ -9,12 +9,10 @@
   <meta name="apple-mobile-web-app-title" content="Deck">
   <meta name="format-detection" content="telephone=no">
   <title>Spotify Deck</title>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="css/deck.css">
-  <link rel="stylesheet" href="css/themes.css">
 </head>
 <body>
-  <!-- Album-art background for the Classic layout: two tiny canvases, scaled up and crossfaded -->
+  <!-- Album-art background: two tiny canvases, scaled up and crossfaded -->
   <canvas id="bg0" class="bg" width="10" height="10"></canvas>
   <canvas id="bg1" class="bg" width="10" height="10"></canvas>
 
@@ -30,7 +28,7 @@
     </div>
   </section>
 
-  <!-- Now playing: the chosen layout's template is stamped in here -->
+  <!-- Now playing: the layout template below is stamped in here -->
   <main id="deck" class="screen hidden"></main>
 
   <!-- Idle clock when nothing is playing; drifts to avoid burn-in -->
@@ -87,8 +85,6 @@
       <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <div class="sheet-body scroll">
-      <div class="row-label">Layout</div>
-      <div id="theme-picker" class="theme-picker"></div>
       <div class="row">
         <span class="row-label">Dim screen</span>
         <span class="seg">
@@ -125,9 +121,8 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <!-- ================= Layouts (see the comment at the top of js/deck.js) ================= -->
-
-  <!-- Classic: responsive, blurred album-art background. Up next opens with the queue button. -->
+  <!-- ===== Layout (see the comment at the top of js/deck.js) =====
+       Responsive, blurred album-art background. Up next opens with the queue button. -->
   <template id="tpl-classic">
     <div class="theme t-classic">
       <img class="art" data-art alt="">
@@ -171,328 +166,9 @@
     </div>
   </template>
 
-  <!-- Cassette deck -->
-  <template id="tpl-cassette">
-    <div class="theme fixed t-cassette">
-      <div class="cs-top">
-        <div class="cs-lcd"><span data-t="time"></span> <span data-t="ampm"></span></div>
-        <div class="cs-side">Side A · <span data-t="status"></span></div>
-      </div>
-      <div class="cs-tape">
-        <i class="cs-screw" style="left: 16px; top: 16px"></i><i class="cs-screw" style="right: 16px; top: 16px"></i>
-        <i class="cs-screw" style="left: 16px; bottom: 16px"></i><i class="cs-screw" style="right: 16px; bottom: 16px"></i>
-        <div class="cs-label">
-          <span class="cs-a">A</span>
-          <div class="cs-title" data-t="title" data-fit="38"></div>
-          <div class="cs-sub" data-t="artistAlbum"></div>
-          <img class="cs-sticker" data-art="mid" alt="">
-          <i class="cs-stripe" style="top: 108px; background: #f28c28"></i>
-          <i class="cs-stripe" style="top: 118px; background: #d9412b"></i>
-          <i class="cs-stripe" style="top: 128px; background: #7a2e1f"></i>
-          <div class="cs-window">
-            <i class="cs-tapedisc" style="left: 12px; top: 10px; width: 84px; height: 84px"></i>
-            <i class="cs-tapedisc" style="right: 2px; top: 0; width: 104px; height: 104px"></i>
-            <div class="cs-reel" style="left: 26px"><i></i><i></i><i></i><i></i></div>
-            <div class="cs-reel" style="right: 26px"><i></i><i></i><i></i><i></i></div>
-          </div>
-          <div class="cs-progress">
-            <span data-t="elapsed"></span>
-            <div class="cs-bar"><div data-p="w"></div></div>
-            <span data-t="duration"></span>
-          </div>
-        </div>
-        <div class="cs-head"><i class="cs-hole"></i><i class="cs-hole cs-hole-sq"></i><i class="cs-hole cs-hole-sq"></i><i class="cs-hole"></i></div>
-      </div>
-      <div class="cs-keys">
-        <button class="cs-key" data-action="like" aria-label="Like"><i class="cs-led led-like"></i>
-          <svg class="ic i-heart-off" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>
-          <svg class="ic ic-fill i-heart-on" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg>LIKE</button>
-        <button class="cs-key" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="11 19 2 12 11 5 11 19"/><polygon points="22 19 13 12 22 5 22 19"/></svg>REW</button>
-        <button class="cs-key cs-key-play" data-action="play" aria-label="Play or pause"><i class="cs-led led-play"></i><svg class="ic" viewBox="0 0 28 24" style="width: 34px"><polygon points="3 4 12 12 3 20 3 4"/><line x1="18" y1="5" x2="18" y2="19"/><line x1="23" y1="5" x2="23" y2="19"/></svg>PLAY / PAUSE</button>
-        <button class="cs-key" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="13 19 22 12 13 5 13 19"/><polygon points="2 19 11 12 2 5 2 19"/></svg>F.FWD</button>
-        <button class="cs-key" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/><line x1="18" y1="14" x2="18" y2="22"/><line x1="14" y1="18" x2="22" y2="18"/></svg>ADD</button>
-        <button class="cs-key" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>BROWSE</button>
-      </div>
-    </div>
-  </template>
-
-  <!-- Hi-fi receiver -->
-  <template id="tpl-hifi">
-    <div class="theme fixed t-hifi">
-      <div class="hf-cheek"></div>
-      <div class="hf-face">
-        <div class="hf-brand"><span>Spotify Deck · Stereo receiver SD-1024</span><span class="hf-power">Power <i></i></span></div>
-        <div class="hf-display">
-          <div class="hf-art"><img data-art="mid" alt=""><i class="hf-scan"></i></div>
-          <div class="hf-vfd">
-            <div class="hf-row1">
-              <div class="hf-inds"><span class="hf-ind">Stereo</span><span class="hf-ind">Connect</span><span class="hf-ind hf-ind-shuffle">Shuffle</span></div>
-              <div class="hf-clock"><div class="hf-clock-label">Clock</div><div data-t="time24"></div></div>
-            </div>
-            <div class="hf-title" data-t="title" data-fit="62"></div>
-            <div class="hf-sub" data-t="artistAlbum"></div>
-            <div class="hf-segs" data-p="seg"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-            <div class="hf-times"><span data-t="elapsed"></span><span data-t="device"></span><span data-t="duration"></span></div>
-          </div>
-        </div>
-        <div class="hf-mid">
-          <div class="hf-vu"><i class="hf-arc"></i><i class="hf-red"></i><div class="hf-scale"><span>-20</span><span>-10</span><span>-5</span><span>0</span><span class="hf-plus">+3</span></div><div class="hf-vulabel">VU  L</div><i class="hf-needle hf-needle-l"></i></div>
-          <div class="hf-vu"><i class="hf-arc"></i><i class="hf-red"></i><div class="hf-scale"><span>-20</span><span>-10</span><span>-5</span><span>0</span><span class="hf-plus">+3</span></div><div class="hf-vulabel">VU  R</div><i class="hf-needle hf-needle-r"></i></div>
-          <div class="hf-spacer"></div>
-          <div class="hf-knobwrap">
-            <div class="hf-knob" data-vol-control="knob" role="slider" aria-label="Volume"><i class="hf-knobcap"></i><div class="hf-knobmark" data-v="r" data-from="-135" data-to="135"><i></i></div></div>
-            <span class="hf-knoblabel">Volume <span data-t="volume"></span></span>
-          </div>
-        </div>
-        <div class="hf-buttons">
-          <button class="hf-btn" data-action="like" aria-label="Like"><i class="hf-led led-like" style="background: #35d07f"></i>Like</button>
-          <button class="hf-btn" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>Prev</button>
-          <button class="hf-btn hf-btn-main" data-action="play" aria-label="Play or pause"><i class="hf-led led-play" style="background: #ffb000"></i>Play · Pause</button>
-          <button class="hf-btn" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>Next</button>
-          <button class="hf-btn" data-action="add" aria-label="Add to playlist"><i class="hf-led" style="background: #4b4b47; opacity: 1"></i>Playlist</button>
-          <button class="hf-btn" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>Browse</button>
-        </div>
-      </div>
-      <div class="hf-cheek"></div>
-    </div>
-  </template>
-
-  <!-- Turntable -->
-  <template id="tpl-turntable">
-    <div class="theme fixed t-turntable">
-      <div class="tt-plinth">
-        <div class="tt-platter">
-          <i class="tt-rim"></i>
-          <div class="tt-vinyl"><img class="tt-label" data-art="mid" alt=""><i class="tt-spindle"></i></div>
-          <i class="tt-sheen"></i>
-        </div>
-        <i class="tt-pivot"></i>
-        <div class="tt-arm" data-p="r" data-from="13" data-to="27"><i class="tt-head"></i></div>
-        <div class="tt-panel">
-          <div class="tt-time" data-t="time"></div>
-          <div class="tt-date" data-t="date"></div>
-          <i class="tt-rule"></i>
-          <div class="tt-kicker" data-t="spinWord"></div>
-          <div class="tt-title" data-t="title" data-fit="40"></div>
-          <div class="tt-artist" data-t="artist"></div>
-          <div class="tt-album" data-t="album"></div>
-          <div class="tt-bar"><div class="tt-fill" data-p="w"></div><i class="tt-dot" data-p="l"></i></div>
-          <div class="tt-times"><span data-t="elapsed"></span><span data-t="duration"></span></div>
-          <div class="tt-controls">
-            <button class="tt-knob" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
-            <button class="tt-knob tt-knob-main" data-action="play" aria-label="Play or pause">
-              <svg class="ic i-play" viewBox="0 0 24 24"><polygon points="7 4 19 12 7 20 7 4"/></svg>
-              <svg class="ic i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg>
-            </button>
-            <button class="tt-knob" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
-          </div>
-          <div class="tt-pills">
-            <button class="tt-pill tt-pill-like" data-action="like" aria-label="Like"><svg class="ic" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg><span class="lbl-like">Like</span><span class="lbl-liked">Liked</span></button>
-            <button class="tt-pill" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Playlist</button>
-            <button class="tt-pill" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg>Browse</button>
-          </div>
-          <div class="tt-foot">33⅓ RPM · <span data-t="device"></span></div>
-        </div>
-      </div>
-    </div>
-  </template>
-
-  <!-- CRT terminal -->
-  <template id="tpl-terminal">
-    <div class="theme fixed t-terminal" data-needs="queue weather">
-      <div class="tm-screen">
-        <div class="tm-head"><span>spotify-deck v1.0 · tty1</span><span><span data-t="timeSec"></span>  <span data-t="dateShort"></span></span></div>
-        <div class="tm-body">
-          <div class="tm-main">
-            <div class="tm-dim">&gt; now_playing --watch</div>
-            <div class="tm-kv tm-kv-title"><span class="tm-k">TITLE</span><span class="tm-titletext" data-t="title"></span></div>
-            <div class="tm-kv"><span class="tm-k">ARTIST</span><span data-t="artist"></span></div>
-            <div class="tm-kv" data-show="album"><span class="tm-k">ALBUM</span><span data-t="album"></span></div>
-            <div class="tm-kv"><span class="tm-k">DEVICE</span><span><span data-t="device"></span>  [<span class="tm-upper" data-t="statusWord"></span>]</span></div>
-            <div class="tm-progress"><div class="tm-bar"><div data-p="w"></div></div><span><span data-t="elapsed"></span>/<span data-t="duration"></span></span></div>
-            <div class="tm-dim tm-gap">&gt; queue --next 3</div>
-            <div class="tm-q" data-show="q1"><span>01</span><span data-t="q1t"></span><i></i><span data-t="q1a"></span></div>
-            <div class="tm-q" data-show="q2"><span>02</span><span data-t="q2t"></span><i></i><span data-t="q2a"></span></div>
-            <div class="tm-q" data-show="q3"><span>03</span><span data-t="q3t"></span><i></i><span data-t="q3a"></span></div>
-            <div data-show="!queue">(queue empty)</div>
-            <div data-show="weather"><div class="tm-dim tm-gap">&gt; weather</div><div data-t="wTerm"></div></div>
-            <div class="tm-gap">&gt; <span class="tm-cursor">█</span></div>
-          </div>
-          <div class="tm-side">
-            <div class="tm-dim tm-small">cover.bmp 20×20</div>
-            <canvas class="tm-cover" data-pixel="20" data-palette="#0b2414,#2f8f4e,#5cff8a" width="260" height="260"></canvas>
-            <div class="tm-dim tm-small" data-show="volume">vol <span data-t="volume"></span> <span data-t="volBar"></span></div>
-          </div>
-        </div>
-        <div class="tm-keys">
-          <button class="tm-key tm-key-like" data-action="like" aria-label="Like"><span class="tm-fn">F1</span><span class="lbl-like">LIKE</span><span class="lbl-liked">LIKED</span></button>
-          <button class="tm-key" data-action="prev" aria-label="Previous"><span class="tm-fn">F2</span>&lt;&lt; PREV</button>
-          <button class="tm-key tm-key-play" data-action="play" aria-label="Play or pause"><span class="tm-fn">F3</span><span class="lbl-play">&gt; PLAY</span><span class="lbl-pause">|| PAUSE</span></button>
-          <button class="tm-key" data-action="next" aria-label="Next"><span class="tm-fn">F4</span>NEXT &gt;&gt;</button>
-          <button class="tm-key" data-action="add" aria-label="Add to playlist"><span class="tm-fn">F5</span>+ LIST</button>
-          <button class="tm-key" data-action="browse" aria-label="Browse playlists and search"><span class="tm-fn">F6</span>BROWSE</button>
-        </div>
-        <i class="tm-scanlines"></i>
-      </div>
-    </div>
-  </template>
-
-  <!-- 8-bit handheld -->
-  <template id="tpl-handheld">
-    <div class="theme fixed t-handheld" data-needs="queue">
-      <div class="hh-top"><span data-t="nowWord"></span><span class="hh-clock"><span class="hh-small" data-t="dateNum"></span><span data-t="time24"></span></span></div>
-      <div class="hh-main">
-        <div class="hh-left">
-          <div class="hh-box hh-artbox"><canvas data-pixel="16" data-palette="#0f380f,#306230,#8bac0f,#9bbc0f" width="320" height="320"></canvas></div>
-          <div class="hh-box hh-dialog">
-            <div data-show="q1">Up next:<br><span data-t="q1t"></span><br>by <span data-t="q1a"></span></div>
-            <div data-show="!q1">Nothing<br>queued.</div>
-            <i class="hh-more"></i>
-          </div>
-        </div>
-        <div class="hh-right">
-          <div class="hh-box hh-stats">
-            <div class="hh-title" data-t="title" data-fit="24"></div>
-            <div class="hh-artist" data-t="artist"></div>
-            <div class="hh-dim" data-show="album">ALBUM  <span data-t="album"></span></div>
-            <div class="hh-time"><span>TIME</span><div class="hh-segs" data-p="seg"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span><span data-t="elapsed"></span>/<span data-t="duration"></span></span></div>
-            <div class="hh-dim">ON  <span data-t="device"></span></div>
-          </div>
-          <div class="hh-box hh-menu">
-            <button class="hh-cmd hh-cmd-on" data-action="play" aria-label="Play or pause"><svg viewBox="0 0 14 18"><polygon points="0 0 14 9 0 18" fill="currentColor"/></svg><span class="lbl-play">PLAY</span><span class="lbl-pause">PAUSE</span></button>
-            <button class="hh-cmd" data-action="next" aria-label="Next">SKIP</button>
-            <button class="hh-cmd" data-action="prev" aria-label="Previous">BACK</button>
-            <button class="hh-cmd" data-action="like" aria-label="Like"><span class="lbl-like">LIKE</span><span class="lbl-liked">UNLIKE</span></button>
-            <button class="hh-cmd" data-action="add" aria-label="Add to playlist">ADD TO LIST</button>
-            <button class="hh-cmd" data-action="browse" aria-label="Browse playlists and search">BROWSE</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  </template>
-
-  <!-- Desk dashboard -->
-  <template id="tpl-dashboard">
-    <div class="theme fixed t-dashboard" data-needs="queue weather">
-      <div class="db-col db-left">
-        <div class="db-card db-clock">
-          <div class="db-time"><span data-t="time"></span><span class="db-ampm" data-t="ampm"></span></div>
-          <div class="db-dim" data-t="date"></div>
-        </div>
-        <div class="db-card db-weather" data-show="weather">
-          <div class="db-wnow">
-            <svg class="db-wicon" viewBox="0 0 24 24" fill="none" stroke="#ffc46b" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="9" r="3.2"/><line x1="9" y1="2.5" x2="9" y2="3.5"/><line x1="3.5" y1="9" x2="2.5" y2="9"/><line x1="4.9" y1="4.9" x2="5.6" y2="5.6"/><line x1="13.1" y1="4.9" x2="12.4" y2="5.6"/><path d="M8 19h9a3.5 3.5 0 0 0 0-7 5 5 0 0 0-9.2 1.8A2.6 2.6 0 0 0 8 19z" stroke="#c9d3dd"/></svg>
-            <div><div class="db-temp" data-t="wTemp"></div><div class="db-dim db-small" data-t="wDesc"></div></div>
-          </div>
-          <div class="db-wline db-dim db-small"><span data-t="wHiLo"></span><span data-t="wSunset"></span></div>
-          <i class="db-rule"></i>
-          <div class="db-forecast db-dim db-small">
-            <div><span data-t="f1d"></span><b data-t="f1t"></b><span data-t="f1c"></span></div>
-            <div><span data-t="f2d"></span><b data-t="f2t"></b><span data-t="f2c"></span></div>
-            <div><span data-t="f3d"></span><b data-t="f3t"></b><span data-t="f3c"></span></div>
-          </div>
-        </div>
-      </div>
-      <div class="db-card db-now">
-        <img class="db-art" data-art alt="">
-        <div class="db-title" data-t="title"></div>
-        <div class="db-dim db-sub" data-t="artistAlbum"></div>
-        <div class="db-bar"><div data-p="w"></div></div>
-        <div class="db-times db-dim db-small"><span data-t="elapsed"></span><span data-t="remaining"></span></div>
-        <div class="db-controls">
-          <button class="db-btn db-like" data-action="like" aria-label="Like"><svg class="ic i-heart-off" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg><svg class="ic ic-fill i-heart-on" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg></button>
-          <button class="db-btn" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
-          <button class="db-btn db-main" data-action="play" aria-label="Play or pause"><svg class="ic i-play" viewBox="0 0 24 24"><polygon points="7 4 19 12 7 20 7 4"/></svg><svg class="ic i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg></button>
-          <button class="db-btn" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
-          <button class="db-btn" data-action="add" aria-label="Add to playlist"><svg class="ic" viewBox="0 0 24 24"><line x1="3" y1="6" x2="15" y2="6"/><line x1="3" y1="12" x2="15" y2="12"/><line x1="3" y1="18" x2="10" y2="18"/><line x1="18" y1="14" x2="18" y2="22"/><line x1="14" y1="18" x2="22" y2="18"/></svg></button>
-          <button class="db-btn" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg></button>
-        </div>
-      </div>
-      <div class="db-col db-right">
-        <div class="db-card db-queue">
-          <div class="db-label">Up next</div>
-          <div class="db-qrow" data-show="q1"><img data-q-art="1" alt=""><div><div class="db-qt" data-t="q1t"></div><div class="db-dim db-small" data-t="q1a"></div></div></div>
-          <div class="db-qrow" data-show="q2"><img data-q-art="2" alt=""><div><div class="db-qt" data-t="q2t"></div><div class="db-dim db-small" data-t="q2a"></div></div></div>
-          <div class="db-qrow" data-show="q3"><img data-q-art="3" alt=""><div><div class="db-qt" data-t="q3t"></div><div class="db-dim db-small" data-t="q3a"></div></div></div>
-          <div class="db-qrow" data-show="q4"><img data-q-art="4" alt=""><div><div class="db-qt" data-t="q4t"></div><div class="db-dim db-small" data-t="q4a"></div></div></div>
-          <div class="db-dim db-small db-empty" data-show="!queue">Nothing queued</div>
-        </div>
-        <div class="db-card db-device">
-          <div class="db-devrow">
-            <div class="db-devname"><div class="db-dim db-small"><span data-t="statusWord"></span> on</div><div class="db-devtext" data-t="device"></div></div>
-            <button class="db-change" data-action="devices">Change</button>
-          </div>
-          <div class="db-vol" data-show="volume">
-            <svg class="ic db-volicon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/></svg>
-            <div class="db-voltrack" data-vol-control="slider" role="slider" aria-label="Volume"><div class="db-volfill" data-v="w"></div><i class="db-volthumb" data-v="l"></i></div>
-            <svg class="ic db-volicon" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-          </div>
-        </div>
-      </div>
-    </div>
-  </template>
-
-  <!-- Big clock -->
-  <template id="tpl-bigclock">
-    <div class="theme fixed t-bigclock" data-needs="queue weather">
-      <div class="bc-top">
-        <div class="bc-time" data-t="time"></div>
-        <div class="bc-date"><span data-t="date"></span><span data-show="weather">  ·  <span data-t="wLine"></span></span></div>
-      </div>
-      <div class="bc-bar"><div data-p="w"></div></div>
-      <div class="bc-strip">
-        <img class="bc-art" data-art="mid" alt="">
-        <div class="bc-text">
-          <div class="bc-title" data-t="title"></div>
-          <div class="bc-dim" data-t="artist"></div>
-          <div class="bc-dim bc-next" data-show="q1">Up next  ·  <span data-t="q1t"></span></div>
-        </div>
-        <button class="bc-btn bc-like" data-action="like" aria-label="Like"><svg class="ic i-heart-off" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg><svg class="ic ic-fill i-heart-on" viewBox="0 0 24 24"><path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z"/></svg></button>
-        <button class="bc-btn bc-ring" data-action="prev" aria-label="Previous"><svg class="ic" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
-        <button class="bc-btn bc-main" data-action="play" aria-label="Play or pause"><svg class="ic i-play" viewBox="0 0 24 24"><polygon points="7 4 19 12 7 20 7 4"/></svg><svg class="ic i-pause" viewBox="0 0 24 24"><line x1="8" y1="5" x2="8" y2="19"/><line x1="16" y1="5" x2="16" y2="19"/></svg></button>
-        <button class="bc-btn bc-ring" data-action="next" aria-label="Next"><svg class="ic" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
-        <button class="bc-btn bc-ring" data-action="browse" aria-label="Browse playlists and search"><svg class="ic" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/></svg></button>
-      </div>
-    </div>
-  </template>
-
-  <!-- Swiss poster -->
-  <template id="tpl-poster">
-    <div class="theme fixed t-poster" data-needs="queue">
-      <div class="ps-grid ps-top">
-        <div class="ps-kicker" data-t="nowWord"></div>
-        <div class="ps-on">on <span data-t="device"></span></div>
-        <div class="ps-time" data-t="time24"></div>
-      </div>
-      <i class="ps-rule"></i>
-      <div class="ps-grid ps-mid">
-        <div class="ps-text">
-          <div class="ps-title" data-t="title" data-fit="124"></div>
-          <div class="ps-artist" data-t="artist"></div>
-          <div class="ps-meta">
-            <div><b>01 Album</b><span data-t="album"></span></div>
-            <div><b>02 Time</b><span data-t="elapsed"></span> / <span data-t="duration"></span></div>
-            <div><b>03 Next</b><span data-show="q1" data-t="q1t"></span><span data-show="!q1">—</span></div>
-          </div>
-        </div>
-        <div class="ps-artbox"><img data-art alt=""><i class="ps-tint"></i></div>
-      </div>
-      <div class="ps-bar"><div data-p="w"></div><i data-p="l"></i></div>
-      <div class="ps-buttons">
-        <button class="ps-btn" data-action="like" aria-label="Like"><span class="lbl-like">Like</span><span class="lbl-liked">Liked</span></button>
-        <button class="ps-btn" data-action="prev" aria-label="Previous">Prev</button>
-        <button class="ps-btn ps-main" data-action="play" aria-label="Play or pause"><span class="lbl-play">Play</span><span class="lbl-pause">Pause</span></button>
-        <button class="ps-btn" data-action="next" aria-label="Next">Next</button>
-        <button class="ps-btn" data-action="add" aria-label="Add to playlist">+ Playlist</button>
-        <button class="ps-btn" data-action="browse" aria-label="Browse playlists and search">Browse</button>
-      </div>
-    </div>
-  </template>
-
   <script src="js/config.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/spotify.js"></script>
-  <script src="js/weather.js"></script>
   <script src="js/deck.js"></script>
 </body>
 </html>
