@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Deck">
+  <meta name="format-detection" content="telephone=no">
+  <title>Spotify Deck</title>
+  <link rel="stylesheet" href="css/deck.css">
+</head>
+<body>
+  <!-- Album-art background: two tiny canvases, scaled up and crossfaded -->
+  <canvas id="bg0" class="bg" width="10" height="10"></canvas>
+  <canvas id="bg1" class="bg" width="10" height="10"></canvas>
+
+  <!-- First-run login (should only ever be seen once) -->
+  <section id="login" class="screen hidden">
+    <div class="login-box">
+      <h1>Spotify Deck</h1>
+      <p id="login-msg" class="login-msg"></p>
+      <button id="login-btn" class="big-btn">Connect Spotify</button>
+    </div>
+  </section>
+
+  <!-- Now playing -->
+  <main id="deck" class="screen hidden">
+    <img id="art" class="art" alt="">
+    <div class="meta">
+      <div id="title" class="title"></div>
+      <div id="artist" class="artist"></div>
+      <div id="album" class="album"></div>
+      <div class="progress"><div id="progress-fill" class="progress-fill"></div></div>
+      <div id="device" class="device"></div>
+      <div class="controls">
+        <button id="btn-like" class="ctl" aria-label="Like">
+          <svg class="i-off" viewBox="0 0 24 24"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></svg>
+          <svg class="i-on" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+        </button>
+        <button id="btn-prev" class="ctl" aria-label="Previous">
+          <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+        </button>
+        <button id="btn-play" class="ctl ctl-main" aria-label="Play or pause">
+          <svg class="i-off" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="i-on" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+        </button>
+        <button id="btn-next" class="ctl" aria-label="Next">
+          <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+        </button>
+        <button id="btn-add" class="ctl" aria-label="Add to playlist">
+          <svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Idle clock when nothing is playing; drifts to avoid burn-in -->
+  <section id="idle" class="screen hidden">
+    <div id="clock" class="clock">
+      <div id="clock-time" class="clock-time"></div>
+      <div id="clock-date" class="clock-date"></div>
+    </div>
+  </section>
+
+  <!-- Screen dim (set in settings) -->
+  <div id="dim" class="dim"></div>
+  <div id="status" class="status hidden"></div>
+
+  <!-- Sheets -->
+  <div id="scrim" class="scrim hidden"></div>
+
+  <div id="picker" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Add to playlist</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <ul id="picker-list" class="sheet-list scroll"></ul>
+  </div>
+
+  <div id="devices" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Play on</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <ul id="devices-list" class="sheet-list scroll"></ul>
+  </div>
+
+  <!-- Hidden settings: 2 s long-press in the top-left corner -->
+  <div id="settings-hotspot" class="hotspot"></div>
+  <div id="settings" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Settings</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <div class="sheet-body scroll">
+      <div class="row">
+        <span class="row-label">Dim screen</span>
+        <span class="seg">
+          <button data-setting="dim" data-value="0">Off</button><button data-setting="dim" data-value="1">Low</button><button data-setting="dim" data-value="2">High</button>
+        </span>
+      </div>
+      <div class="row">
+        <span class="row-label">Idle clock</span>
+        <span class="seg">
+          <button data-setting="idleDim" data-value="0">Dim</button><button data-setting="idleDim" data-value="1">Dimmer</button>
+        </span>
+      </div>
+      <button id="devices-btn" class="wide-btn">Choose device</button>
+      <button id="reload-btn" class="wide-btn">Reload</button>
+      <button id="logout-btn" class="wide-btn danger">Log out</button>
+      <p id="login-expiry" class="fine"></p>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/spotify.js"></script>
+  <script src="js/deck.js"></script>
+</body>
+</html>

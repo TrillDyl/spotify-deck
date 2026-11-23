@@ -1,0 +1,164 @@
+/* Spotify Deck: landscape-first, big touch targets, no zoom or selection.
+   Targets Safari 12.1: no flexbox gap, no aspect-ratio, no inset. */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden; position: fixed; width: 100%;
+  background: #000; color: #fff;
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  outline: none; -webkit-appearance: none; cursor: pointer;
+}
+svg { display: block; fill: currentColor; }
+.hidden { display: none !important; }
+
+/* Background: a 10×10 canvas stretched to full screen reads as a soft blur */
+.bg {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  opacity: 0; transition: opacity 1.2s ease;
+}
+.bg.on { opacity: 1; }
+
+.screen {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+}
+
+/* ---- Now playing ---- */
+#deck { padding: 5vmin; background: rgba(0, 0, 0, 0.5); }
+.art {
+  width: 64vmin; height: 64vmin; -webkit-flex: none; flex: none;
+  border-radius: 1.2vmin; object-fit: cover; background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2vmin 6vmin rgba(0, 0, 0, 0.5);
+  transition: opacity 0.35s ease;
+}
+.art.fading { opacity: 0.3; }
+.meta { margin-left: 5vmin; -webkit-flex: 0 1 42vw; flex: 0 1 42vw; min-width: 0; max-width: 80vmin; }
+.title {
+  font-size: 5.2vmin; font-weight: 700; line-height: 1.15;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.artist, .album, .device { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist { font-size: 3.6vmin; opacity: 0.85; margin-top: 1.2vmin; }
+.album { font-size: 2.8vmin; opacity: 0.55; margin-top: 0.6vmin; }
+.device { font-size: 2.2vmin; opacity: 0.5; margin-top: 1.4vmin; }
+
+.progress { height: 0.8vmin; background: rgba(255, 255, 255, 0.2); border-radius: 0.4vmin; margin-top: 4vmin; overflow: hidden; }
+.progress-fill {
+  height: 100%; width: 100%; background: #fff;
+  -webkit-transform-origin: 0 0; transform-origin: 0 0;
+  -webkit-transform: scaleX(0); transform: scaleX(0);
+  transition: -webkit-transform 1s linear; transition: transform 1s linear;
+}
+
+.controls {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: space-between; justify-content: space-between;
+  margin-top: 4vmin;
+}
+.ctl {
+  width: 12vmin; height: 12vmin; border-radius: 50%;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+}
+.ctl svg { width: 6.5vmin; height: 6.5vmin; }
+.ctl:active { background: rgba(255, 255, 255, 0.15); }
+.ctl-main { width: 17vmin; height: 17vmin; background: #fff; color: #000; }
+.ctl-main svg { width: 9vmin; height: 9vmin; }
+.ctl-main:active { background: rgba(255, 255, 255, 0.75); }
+
+/* Two-state buttons: play/pause and like */
+.ctl .i-on { display: none; }
+.ctl.is-playing .i-off, .ctl.is-liked .i-off { display: none; }
+.ctl.is-playing .i-on, .ctl.is-liked .i-on { display: block; }
+#btn-like.is-liked { color: #1ed760; }
+
+/* Portrait: stack the art above everything else */
+@media (orientation: portrait) {
+  #deck { -webkit-flex-direction: column; flex-direction: column; }
+  .art { width: 78vmin; height: 78vmin; }
+  .meta { margin: 5vmin 0 0; -webkit-flex: none; flex: none; width: 78vmin; max-width: none; text-align: center; }
+}
+
+/* ---- Idle clock ---- */
+#idle { background: #000; }
+.clock {
+  text-align: center; opacity: 0.35;
+  transition: -webkit-transform 50s linear, opacity 1s; transition: transform 50s linear, opacity 1s;
+}
+#idle.dimmer .clock { opacity: 0.16; }
+.clock-time { font-size: 20vmin; font-weight: 200; line-height: 1; }
+.clock-date { font-size: 3.4vmin; margin-top: 2vmin; }
+
+/* ---- Overlays ---- */
+.dim { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; opacity: 0; pointer-events: none; z-index: 5; }
+.status {
+  position: fixed; top: 2vmin; right: 2vmin; width: 1.4vmin; height: 1.4vmin;
+  border-radius: 50%; background: #f5a623; opacity: 0.7; z-index: 6;
+}
+.hotspot { position: fixed; top: 0; left: 0; width: 12vmin; height: 12vmin; z-index: 30; }
+
+.scrim { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.55); z-index: 20; }
+.sheet {
+  position: fixed; top: 8vh; bottom: 8vh; left: 22vw; right: 22vw; z-index: 21;
+  background: #1c1c1e; border-radius: 2vmin; padding: 1.5vmin 2.5vmin 2.5vmin;
+  display: -webkit-flex; display: flex; -webkit-flex-direction: column; flex-direction: column;
+}
+@media (orientation: portrait) { .sheet { left: 6vw; right: 6vw; } }
+.sheet-header {
+  display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between;
+  -webkit-align-items: center; align-items: center; font-size: 3.6vmin; font-weight: 600;
+  -webkit-flex: none; flex: none;
+}
+.sheet-header .ctl { width: 9vmin; height: 9vmin; }
+.sheet-header .ctl svg { width: 4.5vmin; height: 4.5vmin; }
+.sheet-list, .sheet-body {
+  list-style: none; margin: 1vmin 0 0; padding: 0; -webkit-flex: 1; flex: 1;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+}
+.sheet-list li {
+  padding: 2.8vmin 1.5vmin; font-size: 3.2vmin; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sheet-list li:active { background: rgba(255, 255, 255, 0.1); }
+.sheet-list li.empty { opacity: 0.6; white-space: normal; }
+.sheet-list li.busy { opacity: 0.4; }
+.sheet-list .note { float: right; font-size: 2.4vmin; opacity: 0.5; margin-left: 2vmin; margin-top: 0.6vmin; text-transform: capitalize; }
+
+.row {
+  display: -webkit-flex; display: flex; -webkit-justify-content: space-between; justify-content: space-between;
+  -webkit-align-items: center; align-items: center; padding: 2vmin 0; font-size: 3vmin;
+}
+.seg { display: -webkit-flex; display: flex; background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin; padding: 0.5vmin; }
+.seg button { font-size: 2.8vmin; padding: 1.6vmin 3vmin; border-radius: 1vmin; }
+.seg button.on { background: #fff; color: #000; }
+.wide-btn {
+  display: block; width: 100%; margin-top: 1.5vmin; padding: 2.6vmin; font-size: 3vmin;
+  background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin;
+}
+.wide-btn:active { background: rgba(255, 255, 255, 0.18); }
+.wide-btn.danger { color: #ff6b5e; }
+.fine { font-size: 2.3vmin; opacity: 0.5; margin: 2.5vmin 0 0; line-height: 1.4; }
+
+/* ---- Login ---- */
+.login-box { text-align: center; padding: 0 8vw; }
+.login-box h1 { font-size: 6vmin; font-weight: 700; margin: 0; }
+.login-msg { font-size: 3vmin; opacity: 0.7; min-height: 4vmin; margin: 2vmin 0 0; }
+.big-btn {
+  background: #1ed760; color: #000; border-radius: 999px; font-size: 3.6vmin; font-weight: 700;
+  padding: 2.8vmin 7vmin; margin-top: 3vmin;
+}
+.big-btn:active { background: #1aa34a; }
+
+.toast {
+  position: fixed; bottom: 6vh; left: 50%; z-index: 40; max-width: 80vw;
+  -webkit-transform: translateX(-50%); transform: translateX(-50%);
+  background: rgba(40, 40, 40, 0.95); padding: 1.8vmin 3.6vmin; border-radius: 999px; font-size: 2.8vmin;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
