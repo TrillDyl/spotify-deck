@@ -104,15 +104,32 @@ playlist-modify-public user-library-read user-library-modify`
 
 ## Layout
 ```
-index.html          single page: deck, idle clock, playlist picker, hidden settings
-css/deck.css        all styles
-js/config.js        CLIENT_ID and redirect URI (edit this)
-js/auth.js          PKCE login, callback handling, token storage and refresh
+index.html          single page: idle clock, sheets, hidden settings, and one <template> per layout
+css/deck.css        shared styles and the Classic layout
+css/themes.css      the other layouts (cassette, hifi, turntable, terminal, handheld, dashboard,
+                    bigclock, poster), each drawn at 1024×768 and scaled to the screen
+js/config.js        CLIENT_ID, default layout, weather coordinates (edit this)
+js/auth.js          PKCE login, callback handling, token storage and refresh, QR pairing
 js/spotify.js       thin API wrapper: auth headers, 401 retry, 429 backoff
-js/deck.js          UI: polling loop, rendering, controls, picker, long-press settings
+js/weather.js       Open-Meteo forecast (no key), only when config has coordinates
+js/deck.js          polling loop, layout engine, controls, picker, long-press settings
 docs/               setup and lockdown guides for Dylan
 serve.sh            local static server on 127.0.0.1:8888
 ```
+
+## Layouts
+- Nine layouts, picked under Settings → Layout and saved per device. Mockups are on the
+  "Spotify Deck layouts" design canvas: https://claude.ai/artifact/Xz7h7fSqwvM8Uh3SLfWwBP
+- A layout is only a `<template id="tpl-NAME">` plus CSS. Its markup declares what it shows
+  (`data-t`, `data-p`, `data-v`, `data-show`, `data-art`, `data-pixel`, `data-action`,
+  `data-vol-control`, `data-fit`), and `js/deck.js` fills it in. The full list is in the comment at
+  the top of `deck.js`. To add a layout, add a template, its CSS and an entry in `THEMES`.
+- `data-needs="queue weather"` on a layout's root turns on those fetches only for that layout.
+  The queue (`GET /me/player/queue`) refreshes on track change and every 2 minutes. Weather
+  refreshes every 30 minutes.
+- Fonts come from Google Fonts and load only for the layout on screen.
+- The pixel-art covers redraw the real album art. Spotify's image CDN (`i.scdn.co`) sends
+  `Access-Control-Allow-Origin: *`, so `getImageData` works.
 
 ## Milestones
 Milestones 1–4 are built and pass in Chrome against mocked API responses. A real login reached

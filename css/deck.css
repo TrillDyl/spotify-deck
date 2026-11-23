@@ -14,7 +14,8 @@ button {
   font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
   outline: none; -webkit-appearance: none; cursor: pointer;
 }
-svg { display: block; fill: currentColor; }
+svg { display: block; }
+.t-classic svg, .sheet-header svg { fill: currentColor; }
 .hidden { display: none !important; }
 
 /* Background: a 10×10 canvas stretched to full screen reads as a soft blur */
@@ -30,15 +31,22 @@ svg { display: block; fill: currentColor; }
   -webkit-justify-content: center; justify-content: center;
 }
 
-/* ---- Now playing ---- */
-#deck { padding: 5vmin; background: rgba(0, 0, 0, 0.5); }
+/* ---- Now playing: the stage that holds the chosen layout ---- */
+#deck.stage-fixed { background: #000; }
+
+/* ---- Classic layout ---- */
+.t-classic {
+  width: 100%; height: 100%; padding: 5vmin; background: rgba(0, 0, 0, 0.5);
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+}
 .art {
   width: 64vmin; height: 64vmin; -webkit-flex: none; flex: none;
   border-radius: 1.2vmin; object-fit: cover; background: rgba(255, 255, 255, 0.06);
   box-shadow: 0 2vmin 6vmin rgba(0, 0, 0, 0.5);
   transition: opacity 0.35s ease;
 }
-.art.fading { opacity: 0.3; }
+.art.fading, .is-skipping .art { opacity: 0.3; }
 .meta { margin-left: 5vmin; -webkit-flex: 0 1 42vw; flex: 0 1 42vw; min-width: 0; max-width: 80vmin; }
 .title {
   font-size: 5.2vmin; font-weight: 700; line-height: 1.15;
@@ -73,15 +81,11 @@ svg { display: block; fill: currentColor; }
 .ctl-main svg { width: 9vmin; height: 9vmin; }
 .ctl-main:active { background: rgba(255, 255, 255, 0.75); }
 
-/* Two-state buttons: play/pause and like */
-.ctl .i-on { display: none; }
-.ctl.is-playing .i-off, .ctl.is-liked .i-off { display: none; }
-.ctl.is-playing .i-on, .ctl.is-liked .i-on { display: block; }
-#btn-like.is-liked { color: #1ed760; }
+.is-liked .ctl-like { color: #1ed760; }
 
 /* Portrait: stack the art above everything else */
 @media (orientation: portrait) {
-  #deck { -webkit-flex-direction: column; flex-direction: column; }
+  .t-classic { -webkit-flex-direction: column; flex-direction: column; }
   .art { width: 78vmin; height: 78vmin; }
   .meta { margin: 5vmin 0 0; -webkit-flex: none; flex: none; width: 78vmin; max-width: none; text-align: center; }
 }
@@ -138,6 +142,15 @@ svg { display: block; fill: currentColor; }
 .seg { display: -webkit-flex; display: flex; background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin; padding: 0.5vmin; }
 .seg button { font-size: 2.8vmin; padding: 1.6vmin 3vmin; border-radius: 1vmin; }
 .seg button.on { background: #fff; color: #000; }
+.sheet-body > .row-label { display: block; font-size: 3vmin; padding: 2vmin 0 1vmin; }
+.theme-picker {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-gap: 1vmin;
+  padding-bottom: 1vmin; border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.theme-picker button {
+  padding: 2.2vmin 1vmin; font-size: 2.6vmin; border-radius: 1.2vmin; background: rgba(255, 255, 255, 0.08);
+}
+.theme-picker button.on { background: #fff; color: #000; }
 .wide-btn {
   display: block; width: 100%; margin-top: 1.5vmin; padding: 2.6vmin; font-size: 3vmin;
   background: rgba(255, 255, 255, 0.08); border-radius: 1.4vmin;
