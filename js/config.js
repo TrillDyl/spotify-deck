@@ -31,5 +31,5 @@ var DECK_CONFIG = {
 
   // Weather for the layouts that show it. Set your coordinates (e.g. lat: 40.71, lon: -74.01);
   // leave them null to hide weather. units: 'fahrenheit' or 'celsius'.
-  WEATHER: { lat: null, lon: null, units: 'fahrenheit' }
+  WEATHER: { lat: 27.77, lon: -82.64, units: 'fahrenheit' }  // St. Petersburg, FL
 };
