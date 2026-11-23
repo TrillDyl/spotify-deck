@@ -17,6 +17,8 @@ Spotify's 2026 rules **your account must have Premium**.
 5. If logging in later shows an error about the user not being registered, go to the app's
    **User Management** and add your own Spotify email.
 
-## When you deploy to GitHub Pages
-Add the Pages URL (for example `https://<your-username>.github.io/spotify-deck/`) as a second
+## GitHub Pages (for the iPad)
+The deck is live at **https://trilldyl.github.io/spotify-deck/**. Add that exact URL as a second
 Redirect URI in the same app settings. The trailing slash has to match exactly.
+
+Every push to `main` redeploys it within a minute or two.
