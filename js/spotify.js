@@ -80,6 +80,7 @@ var Spotify = (function () {
     getDevices:      function ()            { return request('GET',  '/me/player/devices'); },
     getQueue:        function ()            { return request('GET',  '/me/player/queue'); },
     setVolume:       function (percent)     { return request('PUT',  '/me/player/volume?volume_percent=' + Math.round(percent)); },
+    seek:            function (ms)          { return request('PUT',  '/me/player/seek?position_ms=' + Math.round(ms)); },
     transfer:        function (deviceId, play) {
       return request('PUT', '/me/player', { device_ids: [deviceId], play: !!play });
     },

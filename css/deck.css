@@ -55,15 +55,36 @@ svg { display: block; }
 .artist, .album, .device { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .artist { font-size: 3.6vmin; opacity: 0.85; margin-top: 1.2vmin; }
 .album { font-size: 2.8vmin; opacity: 0.55; margin-top: 0.6vmin; }
-.device { font-size: 2.2vmin; opacity: 0.5; margin-top: 1.4vmin; }
+.device { font-size: 2.2vmin; opacity: 0.5; }
 
-.progress { height: 0.8vmin; background: rgba(255, 255, 255, 0.2); border-radius: 0.4vmin; margin-top: 4vmin; overflow: hidden; }
+/* Progress bar inside a taller touch area, so a finger can drag it */
+.seek { position: relative; height: 6vmin; margin-top: 1.5vmin; touch-action: none; }
+.progress {
+  position: absolute; left: 0; right: 0; top: 2.6vmin;
+  height: 0.8vmin; background: rgba(255, 255, 255, 0.2); border-radius: 0.4vmin; overflow: hidden;
+}
 .progress-fill {
   height: 100%; width: 100%; background: #fff;
   -webkit-transform-origin: 0 0; transform-origin: 0 0;
   -webkit-transform: scaleX(0); transform: scaleX(0);
   transition: -webkit-transform 1s linear; transition: transform 1s linear;
 }
+
+.seek-thumb {
+  display: none; position: absolute; left: 0; top: 1.7vmin; width: 2.6vmin; height: 2.6vmin; margin-left: -1.3vmin;
+  border-radius: 50%; background: #fff; box-shadow: 0 0.3vmin 1vmin rgba(0, 0, 0, 0.4);
+  transition: left 1s linear;
+}
+.can-seek .seek-thumb { display: block; }
+.seeking .seek-thumb { top: 1.2vmin; width: 3.6vmin; height: 3.6vmin; margin-left: -1.8vmin; transition: none; }
+.seeking .progress-fill { transition: none; }
+.times {
+  display: -webkit-flex; display: flex; -webkit-align-items: baseline; align-items: baseline;
+  font-size: 2.2vmin; font-variant-numeric: tabular-nums;
+}
+.times > span:first-child, .times > span:last-child { -webkit-flex: none; flex: none; opacity: 0.6; }
+.times .device { -webkit-flex: 1; flex: 1; min-width: 0; margin: 0 2vmin; text-align: center; }
+.seeking .times > span:first-child { opacity: 1; font-weight: 600; }
 
 .controls {
   display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;

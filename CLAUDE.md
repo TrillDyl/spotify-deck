@@ -10,7 +10,8 @@ Home Screen and later hard-locked as a kiosk.
   art, track title, artist, album, and a progress bar
 - Large touch controls: previous, play/pause, next, like (save to library)
 - **Add to playlist**: a picker listing the user's playlists, tap one to add the current track
-- **Classic layout extras**: a volume slider (hidden when the device can't change volume) and an
+- **Classic layout extras**: a draggable progress bar (the song jumps when the finger lifts;
+  hidden handle when Spotify disallows seeking), elapsed and total time, a volume slider (hidden when the device can't change volume) and an
   Up next button. Up next is a scrolling list of the whole queue: tap a song to skip to it, swipe
   left to reveal **Remove**. The queue is only fetched while it's open, and the open/closed choice
   is saved per device
@@ -108,6 +109,8 @@ Player endpoints used (playback control needs Premium):
 - `PUT /v1/me/player/play?device_id=…` with `{context_uri, offset: {uri}}` or `{uris}`: Browse.
   Any playlist in the library can be played this way, even ones the user doesn't own
 - `POST /v1/me/player/queue?uri=…`: track or episode URIs only
+- `PUT /v1/me/player/seek?position_ms=…`: Classic's progress bar. `actions.disallows.seeking` in
+  `GET /me/player` says when it isn't allowed (ads, some speakers)
 - **The queue can't be edited or jumped into** (no remove, clear or skip-to-item endpoint, checked
   Nov 2026). So tapping a queued song calls `next` once per song before it, and Remove hides the
   song and skips it with `next` when it starts playing (about a second may be heard). Removals

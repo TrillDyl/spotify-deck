@@ -14,9 +14,11 @@
 //   data-queue-list          the whole queue as rows: scroll it, tap a song to skip to it, swipe
 //                            left to remove it
 //   data-vol-control="slider|knob"                     drag to change the volume
+//   data-seek-control        drag along it to move through the song (root gets can-seek, and
+//                            seeking while a finger is down)
 //   data-fit="120"           shrink the text from 120px until it fits its box
-// The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather, has-queue and
-// queue-open.
+// The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather, has-queue,
+// queue-open and can-seek.
 (function () {
   var C = DECK_CONFIG;
   var SETTINGS_KEY = 'deck.settings';
@@ -59,6 +61,9 @@
     errors: 0,
     volume: null,        // 0–100, or null when the device can't change volume
     volumeHoldUntil: 0,  // ignore polled volume while the user is dragging
+    canSeek: false,      // Spotify allows seeking in this item (not during ads, on some speakers)
+    seekRatio: null,     // 0–1 while a finger is on the progress bar
+    seekHoldUntil: 0,    // ignore polled progress until Spotify has caught up with a seek
     queue: [],           // what the layouts show: Spotify's queue minus songs removed here
     queueAll: [],        // Spotify's queue as fetched
     queueAt: 0,
@@ -137,6 +142,7 @@
     loadFonts(THEMES[name].fonts);
     scaleStage();
     setupVolumeControls(root);
+    setupSeekControls(root);
     if (theme.queueList) setupQueueList(theme.queueList);
     renderQueueList();
     paintArt();
@@ -175,6 +181,7 @@
 
   // ---- painting -------------------------------------------------------------
   function ratio() {
+    if (state.seekRatio !== null) return state.seekRatio;
     if (!state.durationMs) return 0;
     var ms = state.progressMs + (state.playing ? Date.now() - state.progressAt : 0);
     return Math.max(0, Math.min(1, ms / state.durationMs));
@@ -285,6 +292,7 @@
     toggle(root, 'is-playing', state.playing);
     toggle(root, 'is-liked', state.liked);
     toggle(root, 'is-shuffle', state.shuffle);
+    toggle(root, 'can-seek', state.canSeek && state.durationMs > 0);
     toggle(root, 'has-volume', state.volume !== null);
     toggle(root, 'has-weather', !!state.weather);
     toggle(root, 'has-queue', state.queue.length > 0);
@@ -456,9 +464,13 @@
 
     state.playing = !!p.is_playing;
     state.shuffle = !!p.shuffle_state;
-    state.progressMs = p.progress_ms || 0;
+    if (Date.now() > state.seekHoldUntil || item.uri !== state.uri) {
+      state.progressMs = p.progress_ms || 0;
+      state.progressAt = Date.now();
+    }
     state.durationMs = item.duration_ms || 0;
-    state.progressAt = Date.now();
+    var disallows = p.actions && p.actions.disallows;
+    state.canSeek = !(disallows && disallows.seeking);
     state.device = (p.device && p.device.name) || '';
     if (Date.now() > state.volumeHoldUntil) {
       state.volume = p.device && p.device.supports_volume !== false && typeof p.device.volume_percent === 'number'
@@ -849,6 +861,74 @@
         else actionError(err);
       });
     }, 250);
+  }
+
+  // Seek: drag along the progress bar to preview the spot; the song jumps there when the finger lifts.
+  function setupSeekControls(root) {
+    list(root, '[data-seek-control]').forEach(function (el) {
+      var dragging = false;
+      function point(e) {
+        if (e.touches && e.touches.length) return e.touches[0];
+        return e.changedTouches ? e.changedTouches[0] : e;  // touchend only has changedTouches
+      }
+      function at(e) {
+        var rect = el.getBoundingClientRect();
+        return Math.max(0, Math.min(1, (point(e).clientX - rect.left) / rect.width));
+      }
+      function start(e) {
+        if (!state.canSeek || !state.durationMs) return;
+        e.preventDefault();
+        dragging = true;
+        state.seekRatio = at(e);
+        toggle(root, 'seeking', true);
+        paint();
+      }
+      function move(e) {
+        if (!dragging) return;
+        e.preventDefault();
+        state.seekRatio = at(e);
+        paint();
+      }
+      function stop() {
+        dragging = false;
+        state.seekRatio = null;
+        toggle(root, 'seeking', false);
+      }
+      function end(e) {
+        if (!dragging) return;
+        var r = at(e);
+        stop();
+        seekTo(Math.round(r * state.durationMs));
+      }
+      function cancel() {
+        if (!dragging) return;
+        stop();
+        paint();
+      }
+      el.addEventListener('touchstart', start, { passive: false });
+      el.addEventListener('touchmove', move, { passive: false });
+      el.addEventListener('touchend', end);
+      el.addEventListener('touchcancel', cancel);
+      el.addEventListener('mousedown', start);
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', end);
+    });
+  }
+
+  function seekTo(ms) {
+    var before = { ms: state.progressMs, at: state.progressAt };
+    state.progressMs = ms;
+    state.progressAt = Date.now();
+    state.seekHoldUntil = Date.now() + 4000;  // don't let a poll from before the seek pull the bar back
+    state.endPolled = false;
+    paint();
+    Spotify.seek(ms).then(function () { pollSoon(1000); }, function (err) {
+      state.seekHoldUntil = 0;
+      state.progressMs = before.ms;
+      state.progressAt = before.at;
+      paint();
+      actionError(err);
+    });
   }
 
   // ---- sheets ---------------------------------------------------------------
