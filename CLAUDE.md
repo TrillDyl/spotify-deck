@@ -10,6 +10,9 @@ Home Screen and later hard-locked as a kiosk.
   art, track title, artist, album, and a progress bar
 - Large touch controls: previous, play/pause, next, like (save to library)
 - **Add to playlist**: a picker listing the user's playlists, tap one to add the current track
+- **Classic layout extras**: a volume slider (hidden when the device can't change volume) and an
+  Up next button that shows the next three tracks. The queue is only fetched while it's open, and
+  the open/closed choice is saved per device
 - **Browse**: a sheet (button in every layout, or tap the idle clock) listing all the user's
   playlists to play, with a search box on top for songs. Tap a song to play it within its album,
   or **+ Queue** to queue it. If no device is active, play targets the last device seen, then

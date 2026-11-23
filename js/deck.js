@@ -9,9 +9,12 @@
 //   img data-art="big|mid|small", img data-q-art="1"   album art, queue art
 //   canvas data-pixel="16" data-palette="#a,#b,…"      album art redrawn as pixel art
 //   data-action="play|prev|next|like|add|browse|devices"  buttons
+//   data-action="queue"      shows or hides the layout's Up next (root gets queue-open); the queue
+//                            is only fetched while it's showing
 //   data-vol-control="slider|knob"                     drag to change the volume
 //   data-fit="120"           shrink the text from 120px until it fits its box
-// The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather and has-queue.
+// The layout's root gets is-playing, is-liked, is-shuffle, has-volume, has-weather, has-queue and
+// queue-open.
 (function () {
   var C = DECK_CONFIG;
   var SETTINGS_KEY = 'deck.settings';
@@ -112,6 +115,7 @@
       root: root,
       fixed: root.classList.contains('fixed'),
       needs: root.getAttribute('data-needs') || '',
+      queueToggle: !!root.querySelector('[data-action="queue"]'),
       texts: list(root, '[data-t]'),
       progs: list(root, '[data-p]'),
       vols: list(root, '[data-v]'),
@@ -134,7 +138,11 @@
     loadExtras();
   }
 
-  function needs(what) { return !!theme && theme.needs.indexOf(what) > -1; }
+  function needs(what) {
+    if (!theme) return false;
+    if (what === 'queue' && theme.queueToggle) return !!settings.showQueue;
+    return theme.needs.indexOf(what) > -1;
+  }
 
   function loadFonts(families) {
     var link = $('theme-fonts');
@@ -271,6 +279,7 @@
     toggle(root, 'has-volume', state.volume !== null);
     toggle(root, 'has-weather', !!state.weather);
     toggle(root, 'has-queue', state.queue.length > 0);
+    toggle(root, 'queue-open', theme.queueToggle && !!settings.showQueue);
 
     theme.shows.forEach(function (el) { toggle(el, 'hidden', !visible(el.getAttribute('data-show'))); });
     theme.texts.forEach(function (el) {
@@ -609,6 +618,13 @@
     like: onLike,
     add: function () { openPicker(); },
     browse: function () { openBrowse(); },
+    queue: function () {
+      settings.showQueue = !settings.showQueue;
+      saveSettings();
+      state.queueAt = 0;  // fetch it now rather than showing an old list
+      loadExtras();
+      paint();
+    },
     devices: function () { openDevices(); }
   };
 

@@ -93,11 +93,46 @@ svg { display: block; }
   .controls .ctl-main svg { width: 7vmin; height: 7vmin; }
 }
 
+/* Volume slider and the Up next button, under the controls */
+.c-extras {
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; margin-top: 2.5vmin;
+}
+.c-vol { -webkit-flex: 1; flex: 1; min-width: 0; margin-right: 2vmin; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; }
+.c-volicon { width: 4vmin; height: 4vmin; -webkit-flex: none; flex: none; opacity: 0.6; }
+.c-voltrack { -webkit-flex: 1; flex: 1; height: 8vmin; margin: 0 1.6vmin; position: relative; touch-action: none; }
+.c-voltrack:before {
+  content: ''; position: absolute; left: 0; right: 0; top: 3.5vmin; height: 1vmin; border-radius: 0.5vmin;
+  background: rgba(255, 255, 255, 0.2);
+}
+.c-volfill { position: absolute; left: 0; top: 3.5vmin; width: 0; height: 1vmin; border-radius: 0.5vmin; background: #fff; }
+.c-volthumb {
+  position: absolute; left: 0; top: 2.25vmin; width: 3.5vmin; height: 3.5vmin; margin-left: -1.75vmin;
+  border-radius: 50%; background: #fff; box-shadow: 0 0.3vmin 1vmin rgba(0, 0, 0, 0.4);
+}
+.c-queue-btn { width: 8.2vmin; height: 8.2vmin; -webkit-flex: none; flex: none; margin-left: auto; opacity: 0.6; }
+.c-queue-btn svg { width: 5vmin; height: 5vmin; }
+.queue-open .c-queue-btn { opacity: 1; color: #1ed760; }
+
+/* Up next */
+.c-queue { display: none; margin-top: 2vmin; text-align: left; }
+.queue-open .c-queue { display: block; }
+.c-label { font-size: 2vmin; font-weight: 600; letter-spacing: 0.2vmin; text-transform: uppercase; opacity: 0.55; margin-bottom: 0.6vmin; }
+.c-qrow { display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; padding: 0.9vmin 0; }
+.c-qrow img { width: 5.6vmin; height: 5.6vmin; -webkit-flex: none; flex: none; border-radius: 0.6vmin; object-fit: cover; background: rgba(255, 255, 255, 0.08); }
+.c-qtext { min-width: 0; margin-left: 1.8vmin; }
+.c-qt, .c-qa { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-qt { font-size: 2.6vmin; font-weight: 600; }
+.c-qa { font-size: 2.2vmin; opacity: 0.55; margin-top: 0.2vmin; }
+.c-qempty { font-size: 2.4vmin; opacity: 0.5; padding: 1vmin 0; }
+
 /* Portrait: stack the art above everything else */
 @media (orientation: portrait) {
   .t-classic { -webkit-flex-direction: column; flex-direction: column; }
-  .art { width: 78vmin; height: 78vmin; }
+  /* Sized so the art, two-line title, controls and volume fit; smaller again with Up next open */
+  .art { width: 54vmin; height: 54vmin; }
+  .queue-open .art { width: 28vmin; height: 28vmin; }
   .meta { margin: 5vmin 0 0; -webkit-flex: none; flex: none; width: 78vmin; max-width: none; text-align: center; }
+  .queue-open .meta { margin-top: 3vmin; }
 }
 
 /* ---- Idle clock ---- */

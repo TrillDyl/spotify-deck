@@ -127,7 +127,7 @@
 
   <!-- ================= Layouts (see the comment at the top of js/deck.js) ================= -->
 
-  <!-- Classic: responsive, blurred album-art background -->
+  <!-- Classic: responsive, blurred album-art background. Up next opens with the queue button. -->
   <template id="tpl-classic">
     <div class="theme t-classic">
       <img class="art" data-art alt="">
@@ -150,6 +150,21 @@
           <button class="ctl" data-action="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
           <button class="ctl" data-action="add" aria-label="Add to playlist"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg></button>
           <button class="ctl" data-action="browse" aria-label="Browse playlists and search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
+        </div>
+        <div class="c-extras">
+          <div class="c-vol" data-show="volume">
+            <svg class="c-volicon" viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>
+            <div class="c-voltrack" data-vol-control="slider" role="slider" aria-label="Volume"><div class="c-volfill" data-v="w"></div><div class="c-volthumb" data-v="l"></div></div>
+            <svg class="c-volicon" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          </div>
+          <button class="ctl c-queue-btn" data-action="queue" aria-label="Show or hide up next"><svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg></button>
+        </div>
+        <div class="c-queue">
+          <div class="c-label">Up next</div>
+          <div class="c-qrow" data-show="q1"><img data-q-art="1" alt=""><div class="c-qtext"><div class="c-qt" data-t="q1t"></div><div class="c-qa" data-t="q1a"></div></div></div>
+          <div class="c-qrow" data-show="q2"><img data-q-art="2" alt=""><div class="c-qtext"><div class="c-qt" data-t="q2t"></div><div class="c-qa" data-t="q2a"></div></div></div>
+          <div class="c-qrow" data-show="q3"><img data-q-art="3" alt=""><div class="c-qtext"><div class="c-qt" data-t="q3t"></div><div class="c-qa" data-t="q3a"></div></div></div>
+          <div class="c-qempty" data-show="!queue">Nothing queued</div>
         </div>
       </div>
     </div>
