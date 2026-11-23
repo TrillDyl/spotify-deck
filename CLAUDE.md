@@ -115,10 +115,11 @@ serve.sh            local static server on 127.0.0.1:8888
 ```
 
 ## Milestones
-Milestones 1–4 are built and pass in Chrome against mocked API responses. They still need a
-real Spotify login and a test on the iPad before being ticked.
+Milestones 1–4 are built and pass in Chrome against mocked API responses. A real login reached
+the iPad through QR pairing on Nov 23, 2026. Controls, like, the picker and polish still need
+checking on the iPad with real playback.
 
-1. [ ] Auth works locally: log in, then show the current track (art, title, artist)
+1. [x] Auth works: log in (on a computer, then QR pairing to the iPad)
 2. [ ] Controls: prev / play-pause / next / like, with optimistic UI updates
 3. [ ] Add-to-playlist picker (only playlists the user owns or collaborates on)
 4. [ ] Polish: blurred album-art background, smooth track transitions, progress bar, idle clock
