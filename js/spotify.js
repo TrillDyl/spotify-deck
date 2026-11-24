@@ -148,8 +148,9 @@ var Spotify = (function () {
     },
     addToQueue:      function (uri)         { return request('POST', '/me/player/queue?uri=' + encodeURIComponent(uri)); },
     // Spotify caps search at 10 results per request (2026); page with offset.
-    searchTracks:    function (q, offset)   {
-      return request('GET', '/search?type=track&limit=10&offset=' + (offset || 0) + '&q=' + encodeURIComponent(q));
+    // types: 'track', or several with commas between them; the limit is for each.
+    search:          function (q, types, offset) {
+      return request('GET', '/search?type=' + types + '&limit=10&offset=' + (offset || 0) + '&q=' + encodeURIComponent(q));
     },
     getDevices:      function ()            { return request('GET',  '/me/player/devices'); },
     getQueue:        function ()            { return request('GET',  '/me/player/queue'); },

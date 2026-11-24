@@ -1,5 +1,6 @@
-// Playlists and search: the Browse sheet (your playlists, a playlist's songs, the For you tab, song
-// search), the add-to-playlist picker, and making a new playlist. js/foryou.js has For you's data.
+// Playlists and search: the Browse sheet (your playlists, a playlist's songs, the For you tab, search
+// for songs, artists and albums), the add-to-playlist picker, and making a new playlist. js/foryou.js
+// has For you's data.
 //
 // Spotify only lists the songs of playlists you own or collaborate on. Ones you only follow open
 // with Play and Shuffle.
@@ -8,6 +9,7 @@ var Browse = (function () {
   var MAX_PLAYLISTS = 500;
   var MAX_SONGS = 500;      // rows in an open playlist, to keep the DOM small on the iPad
   var MAX_RESULTS = 50;
+  var MAX_ALBUMS = 3;       // and one artist, with the songs a search finds
   var NEAR_END_PX = 1200;
   var TAB_KEY = 'deck.browseTab';
   var RANGES = [['short_term', '4 weeks'], ['medium_term', '6 months'], ['long_term', '1 year']];
@@ -223,7 +225,7 @@ var Browse = (function () {
     Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
       toggle(b, 'on', b.getAttribute('data-tab') === tab);
     });
-    $('search-input').placeholder = page && !page.denied ? 'Search songs to add' : 'Search songs';
+    $('search-input').placeholder = page && !page.denied ? 'Search songs to add' : 'Search songs, artists and albums';
   }
 
   function setQuery(raw) {
@@ -426,13 +428,26 @@ var Browse = (function () {
     startPlayback({ uris: items.map(function (t) { return t.uri; }), offset: { position: i } }, label, shuffle);
   }
 
-  function artistRow(a) {
+  function artistRow(a, note) {
+    return contextRow(a, 'round', note, function () { startPlayback({ context_uri: a.uri }, a.name); });
+  }
+
+  // An album plays in order.
+  function albumRow(a) {
+    var kind = a.album_type === 'single' ? 'EP' : 'Album';
+    return contextRow(a, '', [kind, artistsOf(a), (a.release_date || '').slice(0, 4)].filter(Boolean).join(' · '),
+      function () { startPlayback({ context_uri: a.uri }, a.name, false); });
+  }
+
+  // An artist or album, with an optional line under its name.
+  function contextRow(a, cls, note, onTap) {
     var li = api.el('li', 'track'), imgs = a.images || [];
-    li.appendChild(api.thumb(imgs.length ? imgs[imgs.length - 1].url : '', 'round'));
+    li.appendChild(api.thumb(imgs.length ? imgs[imgs.length - 1].url : '', cls));
     var text = api.el('div', 'track-text');
     text.appendChild(api.el('div', 'track-title', a.name || ''));
+    if (note) text.appendChild(api.el('div', 'track-artist', note));
     li.appendChild(text);
-    li.addEventListener('click', function () { startPlayback({ context_uri: a.uri }, a.name); });
+    li.addEventListener('click', onTap);
     return li;
   }
 
@@ -552,28 +567,77 @@ var Browse = (function () {
   }
 
   // ---- search ---------------------------------------------------------------
+  // Lower case, without accents or punctuation, so “beyonce” finds Beyoncé.
+  function plain(s) {
+    return s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f'’]/g, '').replace(/[-.,:;!?&+\/()"“”]+/g, ' ');
+  }
+
+  // Does every word typed start a word of this?
+  function matchesWords(q, text) {
+    var words = plain(q).split(/\s+/).filter(Boolean), hay = ' ' + plain(text);
+    return words.length > 0 && words.every(function (w) { return hay.indexOf(' ' + w) > -1; });
+  }
+
+  function artistsOf(x) { return (x.artists || []).map(function (a) { return a.name; }).join(', '); }
+
+  // The artist and albums to show with the songs: [{ artist or album, close }]. close: it's what was
+  // typed, rather than something Spotify thinks is related.
+  function pickOthers(q, data) {
+    function items(key) { return ((data && data[key] && data[key].items) || []).filter(function (x) { return x && x.uri; }); }
+    function closeFirst(list) {
+      return list.filter(function (x) { return x.close; }).concat(list.filter(function (x) { return !x.close; }));
+    }
+    var artists = items('artists').map(function (a) { return { artist: a, close: matchesWords(q, a.name || '') }; });
+    var seen = {};
+    var albums = items('albums').filter(function (a) {
+      // A short single is just the song again, and albums often come in several editions.
+      var key = plain((a.name || '') + ' ' + artistsOf(a));
+      if (seen[key] || (a.album_type === 'single' && a.total_tracks < 4)) return false;
+      return (seen[key] = true);
+    }).map(function (a) { return { album: a, close: matchesWords(q, (a.name || '') + ' ' + artistsOf(a)) }; });
+    return closeFirst(artists).slice(0, 1).concat(closeFirst(albums).slice(0, MAX_ALBUMS));
+  }
+
+  function otherRow(x) { return x.artist ? artistRow(x.artist, 'Artist') : albumRow(x.album); }
+
   function runSearch(offset) {
     var q = search.q, seq = ++search.seq, listEl = $('browse-list');
     var target = page && !page.denied ? page.pl : null;
     if (!offset) api.fillList(listEl, [{ label: 'Searching…' }]);
-    Spotify.searchTracks(q, offset).then(function (data) {
+    // Only songs can be added to a playlist, and More results is for songs.
+    Spotify.search(q, offset || target ? 'track' : 'track,artist,album', offset).then(function (data) {
       if (seq !== search.seq) return;  // a newer search replaced this one
       var found = (data && data.tracks) || {};
       var tracks = (found.items || []).filter(Boolean);
-      if (!offset && !tracks.length) return api.fillList(listEl, [{ label: 'No songs found for “' + q + '”.' }]);
+      var others = pickOthers(q, data);
+      if (!offset && !tracks.length && !others.length) return api.fillList(listEl, [{ label: 'Nothing found for “' + q + '”.' }]);
+      var below = others;
       if (!offset) {
         api.clearList(listEl);
         listEl.scrollTop = 0;
         if (target) listEl.appendChild(api.el('li', 'section', 'Tap + to add to ' + target.name));
+        // The keyboard covers most of the list, so only what was asked for goes above the songs.
+        var above = others.filter(function (x) { return x.close; });
+        if (above.length || !tracks.length) {
+          below = [];
+          if (!above.length) above = others;
+        }
+        above.forEach(function (x) { listEl.appendChild(otherRow(x)); });
+        if (above.length && tracks.length) listEl.appendChild(api.el('li', 'section', 'Songs'));
       }
       var more = listEl.querySelector('.more');
       if (more) listEl.removeChild(more);
+      var end = listEl.querySelector('.others');  // songs go before the artists and albums at the bottom
       tracks.forEach(function (t) {
-        listEl.appendChild(songRow(t, function () {
+        listEl.insertBefore(songRow(t, function () {
           // Play it within its album so music keeps going after the song ends.
           startPlayback(t.album && t.album.uri ? { context_uri: t.album.uri, offset: { uri: t.uri } } : { uris: [t.uri] }, t.name);
-        }, target));
+        }, target), end);
       });
+      if (below.length) {
+        end = listEl.appendChild(api.el('li', 'section others', 'Artists and albums'));
+        below.forEach(function (x) { listEl.appendChild(otherRow(x)); });
+      }
       api.watchArt(listEl);
       // Spotify returns 10 at a time; stop at 50 to keep the list light on the iPad.
       if (found.next && offset + 10 < MAX_RESULTS) {
@@ -583,7 +647,7 @@ var Browse = (function () {
           more.textContent = 'Loading…';
           runSearch(offset + 10);
         });
-        listEl.appendChild(more);
+        listEl.insertBefore(more, end);
       }
     }, function (err) {
       if (seq !== search.seq) return;
@@ -607,8 +671,7 @@ var Browse = (function () {
     li.appendChild(api.thumb(imgs.length ? imgs[imgs.length - 1].url : ''));
     var text = api.el('div', 'track-text');
     text.appendChild(api.el('div', 'track-title', t.name || ''));
-    text.appendChild(api.el('div', 'track-artist', (t.artists || []).map(function (a) { return a.name; }).join(', ') ||
-      (t.show && t.show.name) || ''));
+    text.appendChild(api.el('div', 'track-artist', artistsOf(t) || (t.show && t.show.name) || ''));
     li.appendChild(text);
     if (!onTap) return li;
     li.appendChild(iconButton(ICON_QUEUE, 'Add to queue', function () { queueTrack(t, li); }));
@@ -748,6 +811,7 @@ var Browse = (function () {
     init: init,
     open: function () { open(null); },
     openPicker: openPicker,
-    onClose: onClose
+    onClose: onClose,
+    _pickOthers: pickOthers  // for the tests
   };
 })();

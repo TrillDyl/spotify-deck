@@ -78,13 +78,13 @@ test('finding 3: a search quota does not stop polling or other calls', async () 
     store: store(),
     fetch: async (url) => (/\/search/.test(url) ? quota() : response(200, {}))
   });
-  const s = await run(c, c.Spotify.searchTracks('x'));
+  const s = await run(c, c.Spotify.search('x', 'track'));
   assert.equal(s.error.reason, 'QUOTA_EXCEEDED');
   assert.equal(s.error.retryAfter, 60);
   assert.equal((await run(c, c.Spotify.getPlayer())).state, 'resolved');
   assert.equal((await run(c, c.Spotify.pause())).state, 'resolved');
   const before = c.calls.length;
-  assert.equal((await run(c, c.Spotify.searchTracks('x'))).error.reason, 'QUOTA_EXCEEDED');
+  assert.equal((await run(c, c.Spotify.search('x', 'track'))).error.reason, 'QUOTA_EXCEEDED');
   assert.equal(c.calls.length, before, 'blocked without a request');
 });
 

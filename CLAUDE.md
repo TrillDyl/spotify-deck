@@ -19,9 +19,10 @@ Home Screen and later hard-locked as a kiosk.
   previous and next become −15 s and +30 s
 - **Browse**: a sheet (button on the now-playing screen, or tap the idle clock) listing all the user's
   playlists with covers (their own and public ones they've saved, refetched each time it opens), with
-  a search box on top for songs. Tap a playlist to open it: Play, Shuffle, and (if the user owns it or
+  a search box on top for songs, artists and albums (one artist and up to three albums: above the songs
+  if they match what was typed, otherwise below; tap to play). Tap a playlist to open it: Play, Shuffle, and (if the user owns it or
   collaborates on it) its songs with art and artists. Tap a song to play from there. Every song has
-  queue and add-to-playlist buttons. Searching from inside an own playlist adds straight to it. If no
+  queue and add-to-playlist buttons. Searching from inside an own playlist finds only songs and adds straight to it. If no
   device is active, play targets the last device seen (kept across reloads), then falls back to asking
   which device to play on
 - **For you** (a tab in Browse): top songs and artists (4 weeks, 6 months, 1 year), recently played,
@@ -154,7 +155,7 @@ Player endpoints used (playback control needs Premium):
   Nov 2026). So tapping a queued song calls `next` once per song before it, and Remove hides the
   song and skips it with `next` when it starts playing (about a second may be heard). Removals
   live in memory, and are dropped when a different playlist or album starts
-- `GET /v1/search?type=track`: **max `limit` is 10** since Feb 2026 (default 5); page with
+- `GET /v1/search?type=track,artist,album`: **max `limit` is 10** of each since Feb 2026 (default 5); page with
   `offset`. The deck stops at 50 results to keep the DOM small
 - `GET /v1/playlists/{id}/items` (max 50 a page) only works for playlists the user owns or
   collaborates on (403 otherwise), so followed playlists open with just Play and Shuffle. Each row

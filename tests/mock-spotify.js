@@ -109,7 +109,17 @@
     if (path === '/me/player/recently-played') return { items: range(50, function (i) {
       return { track: track(700 + i % 35), played_at: new Date(Date.now() - i * 2e5).toISOString(), context: i === 3 ? { uri: 'spotify:playlist:37i9dQZF1EKnown' } : null };
     }) };
-    if (path === '/search') return { tracks: page(range(35, function (i) { return track(300 + i, { name: q.get('q') + ' ' + i }); }), q) };
+    // Artists and albums named after the search, unless it starts with "song".
+    if (path === '/search') {
+      var what = q.get('q'), other = /^song/.test(what) ? 'Related' : what, found = {}, types = q.get('type').split(',');
+      if (types.indexOf('track') > -1) found.tracks = page(range(35, function (i) { return track(300 + i, { name: what + ' ' + i }); }), q);
+      if (types.indexOf('artist') > -1) found.artists = page(range(12, function (i) { return { uri: 'spotify:artist:s' + i, name: i === 2 ? other : 'Someone ' + i, images: images(i + 3) }; }), q);
+      if (types.indexOf('album') > -1) found.albums = page(range(12, function (i) {
+        return { uri: 'spotify:album:s' + i, name: i ? 'Album ' + (i >> 1) : other + ' single', album_type: i ? 'album' : 'single', total_tracks: i ? 10 : 1,
+          artists: [{ name: other }], release_date: '20' + (10 + i) + '-01-01', images: images(i + 50) };
+      }), q);
+      return found;
+    }
     if (path === '/me/albums') return page(range(M.albumCount, function (i) {
       return { album: { id: 'al' + i, uri: 'spotify:album:al' + i, name: String.fromCharCode(65 + i * 7 % 26) + 'lbum ' + i, artists: [{ name: String.fromCharCode(65 + i % 26) + 'rtist' }],
         release_date: '19' + (60 + i % 40), album_type: i % 11 ? 'album' : 'single', total_tracks: i % 11 ? 10 : 2, images: images(i) } };
