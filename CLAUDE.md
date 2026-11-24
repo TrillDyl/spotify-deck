@@ -24,6 +24,11 @@ Home Screen and later hard-locked as a kiosk.
   queue and add-to-playlist buttons. Searching from inside an own playlist adds straight to it. If no
   device is active, play targets the last device seen (kept across reloads), then falls back to asking
   which device to play on
+- **For you** (a tab in Browse): top songs and artists (4 weeks, 6 months, 1 year), recently played,
+  **Radio from this song** (plays the song alone with repeat off, so Autoplay carries on), and
+  Spotify's mixes. Spotify won't list its mixes, so the deck remembers any it sees playing (playlist
+  IDs starting `37i9dQZ`, in `deck.mixes`), names them from Spotify's public oEmbed lookup, and plays
+  them by `context_uri`
 - **New playlist**: from Browse (opens it, empty) or from the picker (adds the song). Private
 - **Record player mode** (Settings → Mode): a shelf of saved albums (`GET /me/albums`), shown
   as covers face-out (the default) or as spines, with a search box, sorting and an A–Z rail.
@@ -111,7 +116,8 @@ Home Screen and later hard-locked as a kiosk.
   apps and would handle every poll. **Run `node tools/stamp.js` before committing a change to the
   deck**, or the iPad keeps the old version (a test checks this). Not yet checked on the iPad; if it
   doesn't work there, use a network-first service worker.
-- **CSP** in `index.html`: scripts from this site and cdnjs, connections to this site and Spotify.
+- **CSP** in `index.html`: scripts from this site and cdnjs, connections to this site and Spotify
+  (the API, accounts, and open.spotify.com for oEmbed).
 - **Hosting:**
   - Local dev: `./serve.sh` → `http://127.0.0.1:8888/`. Spotify requires the loopback **IP**,
     not `localhost`.
@@ -155,6 +161,12 @@ Player endpoints used (playback control needs Premium):
   holds the song as `item` (was `track`)
 - `POST /v1/me/playlists` makes a playlist. Some Development Mode apps report 403s. Not yet checked
   with this app
+- **Blocked for Development Mode since Nov 2024** (don't try to add them): recommendations, related
+  artists, featured and category playlists, and reading any playlist Spotify makes (404, and they're
+  left out of `/me/playlists`). New releases, categories and artists' top tracks went in Feb 2026.
+  Still available: `GET /me/top/{artists,tracks}` and `GET /me/player/recently-played`
+- Not yet checked on a real account: that a mix's `context.uri` shows up in `GET /me/player`, that
+  playing it by `context_uri` works, and that song radio starts Autoplay
 - Cover image URLs for playlists expire within a day, so they aren't stored
 - The Developer Policy rules out content from other services (so no LRCLIB lyrics) and voice control
 - The order of player commands isn't guaranteed: send them one at a time
@@ -162,7 +174,8 @@ Player endpoints used (playback control needs Premium):
 Scopes to request (trim any the API no longer needs):
 `user-read-playback-state user-modify-playback-state user-read-currently-playing
 playlist-read-private playlist-read-collaborative playlist-modify-private
-playlist-modify-public user-library-read user-library-modify`
+playlist-modify-public user-library-read user-library-modify user-top-read user-read-recently-played`
+(the last two are for For you; logins from before Nov 24, 2026 lack them, and For you says so)
 
 ## Layout
 ```
@@ -174,7 +187,8 @@ js/log.js           the last 30 errors, for Settings → Diagnostics
 js/auth.js          PKCE login, callback handling, token storage and refresh, QR pairing
 js/spotify.js       thin API wrapper: auth headers, 401 retry, 429 backoff
 js/queue.js         Up next: parsing it and hiding removed songs
-js/browse.js        Browse, a playlist's songs, search, the picker, new playlists
+js/foryou.js        For you's data: remembered mixes, top songs and artists, recent plays
+js/browse.js        Browse, For you, a playlist's songs, search, the picker, new playlists
 js/deck.js          polling loop, layout, controls, sheets, long-press settings, diagnostics
 js/records.js       record player mode: shelf, sleeve, sides, turntable and tonearm
 css/records.css     record player styles (turntable drawn at 1024×768 and scaled)

@@ -268,6 +268,13 @@ svg { display: block; }
 .search-clear { width: 9vmin; height: 9vmin; -webkit-flex: none; flex: none; display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center; -webkit-justify-content: center; justify-content: center; opacity: 0.6; }
 .search-clear svg { width: 3.6vmin; height: 3.6vmin; }
 
+/* Browse: the Playlists and For you tabs, and For you's time ranges */
+.browse-tabs { -webkit-flex: none; flex: none; margin-top: 1.4vmin; }
+.browse-tabs button, .ranges .seg button { -webkit-flex: 1; flex: 1; padding: 1.7vmin 0; font-size: 2.6vmin; }
+.ranges .seg { -webkit-flex: 1; flex: 1; }
+.sheet-list li.ranges { padding: 1.4vmin 0; border: 0; }
+.sheet-list li.ranges:active { background: none; }
+
 /* Browse: song results */
 .sheet-list li.track {
   display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
@@ -275,7 +282,13 @@ svg { display: block; }
 }
 /* Covers in lists */
 .row-art { display: block; width: 8vmin; height: 8vmin; -webkit-flex: none; flex: none; border-radius: 0.6vmin; object-fit: cover; background: rgba(255, 255, 255, 0.08); }
-.row-plus { text-align: center; line-height: 7.6vmin; font-size: 5vmin; font-weight: 300; }
+.row-icon {
+  font-size: 5vmin; font-weight: 300;
+  display: -webkit-flex; display: flex; -webkit-align-items: center; align-items: center;
+  -webkit-justify-content: center; justify-content: center;
+}
+.row-icon svg { width: 4.4vmin; height: 4.4vmin; fill: currentColor; opacity: 0.85; }
+.row-art.round { border-radius: 50%; }
 .sheet-list li.has-art { -webkit-align-items: center; align-items: center; padding: 1.4vmin 1.5vmin; }
 .sheet-list li.has-art .label { margin-left: 2vmin; }
 .track-text { -webkit-flex: 1; flex: 1; min-width: 0; margin-left: 2vmin; }

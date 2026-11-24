@@ -16,7 +16,9 @@ var DECK_CONFIG = {
     'playlist-modify-private',
     'playlist-modify-public',
     'user-library-read',
-    'user-library-modify'
+    'user-library-modify',
+    'user-top-read',                   // For you: top songs and artists
+    'user-read-recently-played'        // For you: recently played
   ],
 
   POLL_PLAYING_MS: 3000,

@@ -11,7 +11,7 @@
   <meta name="referrer" content="no-referrer">
   <!-- The login lives in this page's storage, so only run our own scripts (and the QR code maker)
        and only talk to Spotify. -->
-  <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com https://open.spotify.com; object-src 'none'; base-uri 'self'; form-action 'none'">
   <title>Spotify Deck</title>
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="icon" href="icon.png">
@@ -104,7 +104,7 @@
     <ul id="picker-list" class="sheet-list scroll"></ul>
   </div>
 
-  <!-- Browse: your playlists, one playlist's songs, or song search once something is typed -->
+  <!-- Browse: your playlists, For you, one playlist's songs, or song search once something is typed -->
   <div id="browse" class="sheet hidden">
     <div class="sheet-header">
       <button id="browse-back" class="ctl sheet-back hidden" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
@@ -117,17 +117,18 @@
         autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
       <button id="search-clear" class="search-clear hidden" type="button" aria-label="Clear search"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </form>
+    <div id="browse-tabs" class="seg browse-tabs"><button data-tab="playlists">Playlists</button><button data-tab="foryou">For you</button></div>
     <ul id="browse-list" class="sheet-list scroll"></ul>
   </div>
 
   <div id="newpl" class="sheet hidden">
     <div class="sheet-header">
-      <span class="sheet-title">New playlist<span id="newpl-song" class="sheet-sub"></span></span>
+      <span class="sheet-title"><span id="newpl-title">New playlist</span><span id="newpl-song" class="sheet-sub"></span></span>
       <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <form id="newpl-form" action="#">
       <div class="search">
-        <input id="newpl-name" class="search-input" type="text" placeholder="Playlist name" maxlength="100"
+        <input id="newpl-name" class="search-input" type="text" placeholder="Name" maxlength="100"
           autocomplete="off" autocorrect="off" spellcheck="false">
       </div>
       <button id="newpl-create" class="wide-btn newpl-create">Create</button>
@@ -305,6 +306,7 @@
   <script src="js/auth.js"></script>
   <script src="js/spotify.js"></script>
   <script src="js/queue.js"></script>
+  <script src="js/foryou.js"></script>
   <script src="js/browse.js"></script>
   <script src="js/records.js"></script>
   <script src="js/deck.js"></script>

@@ -103,6 +103,12 @@
       M.lastAdd = { id: m[1], uris: body.uris };
       return { snapshot_id: 'x' };
     }
+    if (path === '/oembed') return /37i9dQZF1E1/.test(q.get('url')) ? { title: 'Daily Mix 1', thumbnail_url: art(31) } : 404;
+    if (path === '/me/top/tracks') return { items: range(50, function (i) { return track({ short_term: 400, medium_term: 500, long_term: 600 }[q.get('time_range')] + i); }) };
+    if (path === '/me/top/artists') return { items: range(30, function (i) { return { uri: 'spotify:artist:a' + i, name: 'Top artist ' + i, images: images(i + 9) }; }) };
+    if (path === '/me/player/recently-played') return { items: range(50, function (i) {
+      return { track: track(700 + i % 35), played_at: new Date(Date.now() - i * 2e5).toISOString(), context: i === 3 ? { uri: 'spotify:playlist:37i9dQZF1EKnown' } : null };
+    }) };
     if (path === '/search') return { tracks: page(range(35, function (i) { return track(300 + i, { name: q.get('q') + ' ' + i }); }), q) };
     if (path === '/me/albums') return page(range(M.albumCount, function (i) {
       return { album: { id: 'al' + i, uri: 'spotify:album:al' + i, name: String.fromCharCode(65 + i * 7 % 26) + 'lbum ' + i, artists: [{ name: String.fromCharCode(65 + i % 26) + 'rtist' }],

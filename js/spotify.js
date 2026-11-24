@@ -160,6 +160,9 @@ var Spotify = (function () {
     },
     getMe:           function ()            { return request('GET',  '/me'); },
     getMyPlaylists:  function (offset)      { return request('GET',  '/me/playlists?limit=50&offset=' + (offset || 0)); },
+    // For you: needs the user-top-read and user-read-recently-played permissions.
+    getTop:          function (type, range) { return request('GET',  '/me/top/' + type + '?time_range=' + range + '&limit=50'); },
+    getRecent:       function ()            { return request('GET',  '/me/player/recently-played?limit=50'); },
     // Record player: saved albums and their tracks (both cap limit at 50).
     getSavedAlbums:  function (offset)      { return request('GET',  '/me/albums?limit=50&offset=' + (offset || 0)); },
     getAlbumTracks:  function (id, offset)  {

@@ -360,6 +360,7 @@
   function render(p) {
     var item = p && p.item, now = Date.now();
     if (p && p.device) useDevice(p.device.id);
+    ForYou.see(p);
     if (layout && layout.record) Records.onPlayer(p);
     if (layout && !state.jumping) toggle(layout.root, 'is-skipping', false);
     // Some things play without any details, like ads and the DJ talking.
@@ -979,17 +980,19 @@
     listEl.innerHTML = '';
   }
 
-  // rows: { label, note?, art?, plus?, cls?, inert? }. art: a cover ('' for a blank one); plus: a +
-  // in its place. Rows are tappable when onPick is given, unless inert.
+  // rows: { label, note?, art?, icon?, cls?, inert? }. art: a cover ('' for a blank one); icon: an SVG
+  // of ours, or a +, in its place. Rows are tappable when onPick is given, unless inert.
   function fillList(listEl, rows, onPick) {
     clearList(listEl);
     rows.forEach(function (row) {
       var li = el('li');
       var live = onPick && !row.inert;
       li.className = row.cls || (live ? '' : 'empty');
-      if (row.plus || row.art !== undefined) {
+      if (row.icon || row.art !== undefined) {
         toggle(li, 'has-art', true);
-        li.appendChild(row.plus ? el('span', 'row-art row-plus', '+') : thumb(row.art));
+        var lead = row.icon ? el('span', 'row-art row-icon') : thumb(row.art);
+        if (row.icon) lead.innerHTML = row.icon;
+        li.appendChild(lead);
       }
       li.appendChild(el('span', 'label', row.label));
       if (row.note) li.appendChild(el('span', 'note', row.note));
@@ -1242,7 +1245,8 @@
       afterAction: afterAction,
       isNoDevice: isNoDevice,
       openDevices: openDevices,
-      useDevice: useDevice
+      useDevice: useDevice,
+      progressMs: function () { return ratio() * state.durationMs; }
     });
     Records.init({
       state: state,

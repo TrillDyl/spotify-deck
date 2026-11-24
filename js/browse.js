@@ -1,5 +1,5 @@
-// Playlists and search: the Browse sheet (your playlists, a playlist's songs, song search), the
-// add-to-playlist picker, and making a new playlist.
+// Playlists and search: the Browse sheet (your playlists, a playlist's songs, the For you tab, song
+// search), the add-to-playlist picker, and making a new playlist. js/foryou.js has For you's data.
 //
 // Spotify only lists the songs of playlists you own or collaborate on. Ones you only follow open
 // with Play and Shuffle.
@@ -9,15 +9,26 @@ var Browse = (function () {
   var MAX_SONGS = 500;      // rows in an open playlist, to keep the DOM small on the iPad
   var MAX_RESULTS = 50;
   var NEAR_END_PX = 1200;
+  var TAB_KEY = 'deck.browseTab';
+  var RANGES = [['short_term', '4 weeks'], ['medium_term', '6 months'], ['long_term', '1 year']];
 
   var ICON_QUEUE = '<svg viewBox="0 0 24 24"><path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/></svg>';
   var ICON_ADD = '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>';
+  var ICON_RADIO = '<svg viewBox="0 0 24 24"><path d="M3.24 6.15C2.51 6.43 2 7.17 2 8v12c0 1.1.89 2 2 2h16c1.11 0 2-.9 2-2V8c0-1.11-.89-2-2-2H8.3l8.26-3.34-.67-1.66L3.24 6.15zM7 20c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm13-8h-2v-2h-2v2H4V8h16v4z"/></svg>';
+  var ICON_SONGS = '<svg viewBox="0 0 24 24"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>';
+  var ICON_ARTISTS = '<svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+  var ICON_RECENT = '<svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>';
+  var ICON_RENAME = '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
+  var ICON_FORGET = '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>';
   var ICON_DONE = '<svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg>';
 
   var api = null;    // from deck.js
-  var state = null;  // the deck's state: uri, item, deviceId, me, playlists, playlistsAt
+  var state = null;  // the deck's state: uri, item, deviceId, me, playlists, playlistsAt, queueAt
   var search = { q: '', seq: 0, timer: null };
   var page = null;   // the playlist open in Browse
+  var mine = null;     // a For you page open in Browse: { kind, title, range, items, error }
+  var tab = 'playlists';  // or 'foryou'
+  var naming = null;   // what the name sheet is for: { picking } for a new playlist, { mix } to rename one
   var picking = null;  // what the picker or the new-playlist sheet is for: { track, browse, scroll }
 
   function $(id) { return document.getElementById(id); }
@@ -83,30 +94,30 @@ var Browse = (function () {
   function openPicker(track, fromBrowse) {
     if (!track || !track.uri) return;
     var listEl = $('picker-list');
-    var mine = { track: track, browse: !!fromBrowse, scroll: $('browse-list').scrollTop };
+    var job = { track: track, browse: !!fromBrowse, scroll: $('browse-list').scrollTop };
     $('picker-song').textContent = track.name || '';
     api.fillList(listEl, [{ label: 'Loading…' }]);
     api.openSheet('picker');
-    picking = mine;  // after openSheet, which closes (and so clears) whatever was open
+    picking = job;  // after openSheet, which closes (and so clears) whatever was open
     loadPlaylists().then(function (all) {
-      if (picking !== mine) return;
-      var rows = [{ label: 'New playlist', plus: true, make: true }];
+      if (picking !== job) return;
+      var rows = [{ label: 'New playlist', icon: '+', make: true }];
       all.filter(isMine).forEach(function (pl) {
         rows.push({ label: pl.name, note: noteFor(pl), art: coverOf(pl), pl: pl });
       });
       api.fillList(listEl, rows, function (row, li) {
-        if (row.make) return openNew(mine);
+        if (row.make) return openNew(job);
         if (li.classList.contains('busy')) return;
         toggle(li, 'busy', true);
-        addTo(row.pl, mine.track).then(function () {
-          donePicking(mine, 'Added to ' + row.pl.name);
+        addTo(row.pl, job.track).then(function () {
+          donePicking(job, 'Added to ' + row.pl.name);
         }, function (err) {
           toggle(li, 'busy', false);
           api.actionError(err);
         });
       });
     }, function (err) {
-      if (picking !== mine) return;
+      if (picking !== job) return;
       api.closeSheets();
       api.actionError(err);
     });
@@ -132,23 +143,44 @@ var Browse = (function () {
   }
 
   // ---- new playlist ---------------------------------------------------------
-  function openNew(from) {
-    var p = from || { track: null, browse: true, scroll: 0 };
-    $('newpl-name').value = '';
+  function openName(title, sub, value, button) {
+    $('newpl-title').textContent = title;
+    $('newpl-song').textContent = sub;
+    $('newpl-name').value = value;
+    $('newpl-create').textContent = button;
     $('newpl-msg').textContent = '';
-    $('newpl-song').textContent = p.track ? 'with ' + p.track.name : '';
     toggle($('newpl-create'), 'busy', false);
     api.openSheet('newpl');
-    picking = p;
     $('newpl-name').focus();
   }
 
-  function createNew() {
-    var name = trim($('newpl-name').value), p = picking, btn = $('newpl-create');
-    if (!p || btn.classList.contains('busy')) return;
+  function openNew(from) {
+    var p = from || { track: null, browse: true, scroll: 0 };
+    openName('New playlist', p.track ? 'with ' + p.track.name : '', '', 'Create');
+    picking = p;
+    naming = { picking: p };
+  }
+
+  function openRename(m) {
+    openName('Rename mix', '', m.name, 'Save');
+    naming = { mix: m };
+  }
+
+  function onNamed() {
+    var name = trim($('newpl-name').value), btn = $('newpl-create');
+    if (!naming || btn.classList.contains('busy')) return;
     if (!name) { $('newpl-msg').textContent = 'Give it a name first.'; return; }
     $('newpl-name').blur();
     $('newpl-msg').textContent = '';
+    if (naming.mix) {
+      ForYou.rename(naming.mix.id, name);
+      open(null);
+      return;
+    }
+    createNew(name, naming.picking, btn);
+  }
+
+  function createNew(name, p, btn) {
     toggle(btn, 'busy', true);
     Spotify.createPlaylist(name).then(function (pl) {
       pl.mine = true;
@@ -178,15 +210,19 @@ var Browse = (function () {
   function open(pl) {
     // Start fresh each time: on a kiosk the last search could be hours old.
     $('search-input').value = '';
-    page = null;
+    page = mine = null;
     api.openSheet('browse');
     if (pl) openPlaylist(pl);
     else setQuery('');
   }
 
   function showHeader() {
-    $('browse-title').textContent = page ? page.pl.name : 'Browse';
-    toggle($('browse-back'), 'hidden', !page);
+    $('browse-title').textContent = page ? page.pl.name : mine ? mine.title : 'Browse';
+    toggle($('browse-back'), 'hidden', !page && !mine);
+    toggle($('browse-tabs'), 'hidden', !!(page || mine || search.q));
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
+      toggle(b, 'on', b.getAttribute('data-tab') === tab);
+    });
     $('search-input').placeholder = page && !page.denied ? 'Search songs to add' : 'Search songs';
   }
 
@@ -197,11 +233,13 @@ var Browse = (function () {
     toggle($('search-clear'), 'hidden', !raw);
     if (!search.q) {
       search.seq++;
-      if (!page) showPlaylists();
-      else if (page.stale) openPlaylist(page.pl);
-      else renderPlaylist();
+      if (page) { if (page.stale) openPlaylist(page.pl); else renderPlaylist(); }
+      else if (mine) renderMine();
+      else if (tab === 'foryou') showForYou();
+      else showPlaylists();
       return;
     }
+    showHeader();
     // Wait for a pause in typing so each keystroke isn't a request.
     search.timer = setTimeout(function () { search.timer = null; runSearch(0); }, 450);
   }
@@ -209,7 +247,7 @@ var Browse = (function () {
   function back() {
     var input = $('search-input');
     input.blur();
-    if (!search.q) page = null;  // out of the playlist; from a search, back to the playlist first
+    if (!search.q) page = mine = null;  // out of the page; from a search, back to the page first
     input.value = '';
     setQuery('');
     showHeader();
@@ -225,11 +263,11 @@ var Browse = (function () {
     if (shown) render(shown);
     else api.fillList(listEl, [{ label: 'Loading…' }]);
     loadPlaylists(true).then(function (pls) {
-      if (seq !== search.seq || page) return;  // a search started or the sheet closed meanwhile
+      if (seq !== search.seq || page || mine || tab !== 'playlists') return;  // something else is showing
       if (shown && samePlaylists(shown, pls)) return;  // unchanged: keep the scroll position
       render(pls);
     }, function (err) {
-      if (shown || seq !== search.seq || page) return;  // the cached list is still up
+      if (shown || seq !== search.seq || page || mine || tab !== 'playlists') return;  // the cached list is still up
       api.closeSheets();
       api.actionError(err);
     });
@@ -237,7 +275,7 @@ var Browse = (function () {
     function render(pls) {
       var rows = [];
       if (!state.uri) rows.push({ label: 'Resume on a device…', resume: true });
-      rows.push({ label: 'New playlist', plus: true, make: true });
+      rows.push({ label: 'New playlist', icon: '+', make: true });
       rows.push({ label: 'Your playlists', cls: 'section', inert: true });
       if (!pls.length) rows.push({ label: 'No playlists yet.', cls: 'empty', inert: true });
       pls.forEach(function (pl) {
@@ -250,6 +288,152 @@ var Browse = (function () {
       });
       listEl.scrollTop = 0;
     }
+  }
+
+  // ---- for you --------------------------------------------------------------
+  function showForYou() {
+    var listEl = $('browse-list'), rows = [];
+    var song = state.uri && state.item && state.item.type === 'track' && !state.item.is_local ? state.item : null;
+    showHeader();
+    if (song) rows.push({ label: 'Radio from this song', note: song.name, icon: ICON_RADIO, radio: song });
+    rows.push({ label: 'Your listening', cls: 'section', inert: true });
+    rows.push({ label: 'Top songs', icon: ICON_SONGS, kind: 'tracks' });
+    rows.push({ label: 'Top artists', icon: ICON_ARTISTS, kind: 'artists' });
+    rows.push({ label: 'Recently played', icon: ICON_RECENT, kind: 'recent' });
+    rows.push({ label: 'Your Spotify mixes', cls: 'section', inert: true });
+    api.fillList(listEl, rows, function (row) {
+      if (row.radio) startRadio(row.radio);
+      else openMine(row.kind, row.label);
+    });
+    var mixes = ForYou.mixes();
+    mixes.forEach(function (m) { listEl.appendChild(mixRow(m)); });
+    if (!mixes.length) {
+      listEl.appendChild(api.el('li', 'foot', 'Play a Daily Mix, Discover Weekly or another Spotify mix from your phone, and it’ll be kept here.'));
+    }
+    api.watchArt(listEl);
+    listEl.scrollTop = 0;
+  }
+
+  function mixRow(m) {
+    var li = api.el('li', 'track');
+    var art = api.thumb(m.cover || m.songArt);
+    // Covers of mixes can stop working; the song's art is a good stand-in.
+    art.addEventListener('error', function () {
+      if (art._src === m.songArt || !m.songArt) return;
+      art._src = m.songArt;
+      art.src = m.songArt;
+    });
+    li.appendChild(art);
+    var text = api.el('div', 'track-text');
+    text.appendChild(api.el('div', 'track-title', m.name));
+    li.appendChild(text);
+    li.appendChild(iconButton(ICON_RENAME, 'Rename', function () { openRename(m); }));
+    li.appendChild(iconButton(ICON_FORGET, 'Forget this mix', function () {
+      ForYou.forget(m.id);
+      showForYou();
+      api.toast('Forgot ' + m.name);
+    }));
+    li.addEventListener('click', function () {
+      startPlayback({ context_uri: m.uri }, m.name, undefined, function (err) {
+        if (err && (err.status === 403 || err.status === 404 || err.status === 400)) api.toast('Spotify wouldn’t start ' + m.name + ' from here');
+        else api.actionError(err);
+      });
+    });
+    return li;
+  }
+
+  // Spotify has no way to ask for a song's radio. But when a song played on its own ends, Autoplay
+  // carries on with similar ones. If it's already playing, it carries on from the same spot.
+  function startRadio(song) {
+    var body = { uris: [song.uri] };
+    if (song.uri === state.uri) body.position_ms = Math.round(api.progressMs());
+    startPlayback(body, song.name + ' radio', undefined, null, function () {
+      return Spotify.setRepeat('off').catch(function () {});  // repeat would keep Autoplay from starting
+    });
+  }
+
+  function openMine(kind, title) {
+    search.seq++;
+    mine = { kind: kind, title: title, range: RANGES[0][0], items: null, error: null };
+    $('browse-list').scrollTop = 0;
+    loadMine();
+  }
+
+  function loadMine() {
+    var m = mine, range = m.range;
+    m.items = m.error = null;
+    renderMine();
+    function current() { return mine === m && m.range === range; }
+    ForYou.load(m.kind, range).then(function (items) {
+      if (!current()) return;
+      m.items = items;
+      if (!search.q) renderMine();
+    }, function (err) {
+      if (err && err.code === 'logged_out') return api.actionError(err);
+      if (!current()) return;
+      m.error = err || {};
+      if (!search.q) renderMine();
+    });
+  }
+
+  function renderMine() {
+    var listEl = $('browse-list'), m = mine, items = m.items || [];
+    showHeader();
+    api.clearList(listEl);
+    if (m.kind !== 'recent') listEl.appendChild(rangeRow());
+    if (m.kind !== 'artists' && items.length) listEl.appendChild(mineHero(items));
+    items.forEach(function (it, i) {
+      listEl.appendChild(m.kind === 'artists' ? artistRow(it) : songRow(it, function () { playSongs(items, i, it.name); }));
+    });
+    var err = m.error;
+    var foot = !err ? (!m.items ? 'Loading…' : items.length ? '' : 'Nothing here yet. Spotify fills this in as you listen.')
+      : err.status === 403 ? 'This needs a permission your login doesn’t have. Log in on your Mac again and pair this iPad to see it.'
+      : err.status === 429 ? api.busyText(err)
+      : 'Couldn’t load this. Tap to try again.';
+    if (foot) {
+      var li = api.el('li', 'foot', foot);
+      if (err && err.status !== 403) li.addEventListener('click', loadMine);
+      listEl.appendChild(li);
+    }
+    api.watchArt(listEl);
+  }
+
+  function rangeRow() {
+    var li = api.el('li', 'ranges'), seg = api.el('span', 'seg');
+    RANGES.forEach(function (r) {
+      var b = api.el('button', r[0] === mine.range ? 'on' : '', r[1]);
+      b.type = 'button';
+      b.addEventListener('click', function () {
+        if (mine.range === r[0]) return;
+        mine.range = r[0];
+        loadMine();
+      });
+      seg.appendChild(b);
+    });
+    li.appendChild(seg);
+    return li;
+  }
+
+  function mineHero(items) {
+    var imgs = (items[0].album && items[0].album.images) || [];
+    return heroRow(imgs.length ? imgs[Math.min(1, imgs.length - 1)].url : '', mine.title, songs(items.length), function (shuffle) {
+      playSongs(items, shuffle ? Math.floor(Math.random() * items.length) : 0, mine.title, shuffle);
+    });
+  }
+
+  // Play a list of songs from one of them on.
+  function playSongs(items, i, label, shuffle) {
+    startPlayback({ uris: items.map(function (t) { return t.uri; }), offset: { position: i } }, label, shuffle);
+  }
+
+  function artistRow(a) {
+    var li = api.el('li', 'track'), imgs = a.images || [];
+    li.appendChild(api.thumb(imgs.length ? imgs[imgs.length - 1].url : '', 'round'));
+    var text = api.el('div', 'track-text');
+    text.appendChild(api.el('div', 'track-title', a.name || ''));
+    li.appendChild(text);
+    li.addEventListener('click', function () { startPlayback({ context_uri: a.uri }, a.name); });
+    return li;
   }
 
   // ---- one playlist ---------------------------------------------------------
@@ -272,18 +456,24 @@ var Browse = (function () {
   }
 
   function hero() {
-    var pl = page.pl, li = api.el('li', 'hero');
-    li.appendChild(api.thumb(coverOf(pl, 1), 'hero-art'));
-    var info = api.el('div', 'hero-info');
-    info.appendChild(api.el('div', 'hero-name', pl.name));
+    var pl = page.pl;
     var note = page.denied || page.total === null ? noteFor(pl) : songs(page.total);
+    return heroRow(coverOf(pl, 1), pl.name, note, page.total === 0 ? null : function (shuffle) { playPlaylist(pl, shuffle); });
+  }
+
+  // The top of a page: cover, name, and Play and Shuffle (unless there's nothing to play).
+  function heroRow(art, name, note, onPlay) {
+    var li = api.el('li', 'hero');
+    li.appendChild(api.thumb(art, 'hero-art'));
+    var info = api.el('div', 'hero-info');
+    info.appendChild(api.el('div', 'hero-name', name));
     info.appendChild(api.el('div', 'hero-note', note));
-    if (page.total !== 0) {
+    if (onPlay) {
       var buttons = api.el('div', 'hero-buttons');
       [['Play', false], ['Shuffle', true]].forEach(function (b) {
         var btn = api.el('button', 'hero-btn' + (b[1] ? '' : ' main'), b[0]);
         btn.type = 'button';
-        btn.addEventListener('click', function () { playPlaylist(pl, b[1]); });
+        btn.addEventListener('click', function () { onPlay(b[1]); });
         buttons.appendChild(btn);
       });
       info.appendChild(buttons);
@@ -468,8 +658,9 @@ var Browse = (function () {
 
   // Start a playlist, album or track. Target the last device seen so this works from the idle
   // clock too; if that device is gone, ask which one to play on.
-  // shuffle: true or false to set it, or leave it out to keep it as it is.
-  function startPlayback(body, label, shuffle) {
+  // shuffle: true or false to set it, or leave it out to keep it as it is. onFail handles errors other
+  // than having no device; after runs once it's playing.
+  function startPlayback(body, label, shuffle, onFail, after) {
     api.closeSheets();
     function quietly() {}
     function go(deviceId) {
@@ -480,18 +671,19 @@ var Browse = (function () {
         return Spotify.playItems(body, deviceId).then(function () {
           // Shuffle can only be set on an active device, which it may not have been until now.
           if (!ok) return Spotify.setShuffle(shuffle, deviceId).catch(quietly);
-        });
+        }).then(function () { return after && after(); });
       });
     }
+    var fail = onFail || api.actionError;
     function done() {
       api.toast('Playing ' + label);
       api.afterAction();
     }
     go(state.deviceId).then(done, function (err) {
-      if (!api.isNoDevice(err)) return api.actionError(err);
+      if (!api.isNoDevice(err)) return fail(err);
       api.openDevices(function (device) {
         api.useDevice(device.id);
-        go(device.id).then(done, api.actionError);
+        go(device.id).then(done, fail);
       });
     });
   }
@@ -502,12 +694,20 @@ var Browse = (function () {
     $('newpl-name').blur();
     clearTimeout(search.timer);
     search.seq++;  // drop any search still in flight
-    picking = null;
+    picking = naming = null;
   }
 
   function init(a) {
     api = a;
     state = a.state;
+    try { if (localStorage.getItem(TAB_KEY) === 'foryou') tab = 'foryou'; } catch (e) {}
+    Array.prototype.forEach.call(document.querySelectorAll('[data-tab]'), function (b) {
+      b.addEventListener('click', function () {
+        tab = b.getAttribute('data-tab');
+        try { localStorage.setItem(TAB_KEY, tab); } catch (e) {}
+        setQuery('');
+      });
+    });
 
     // Search box. Search runs as you type; the keyboard's Search key just hides the keyboard.
     var input = $('search-input');
@@ -535,7 +735,7 @@ var Browse = (function () {
     name.addEventListener('input', api.bumpSheetTimer);
     $('newpl-form').addEventListener('submit', function (e) {
       e.preventDefault();
-      createNew();
+      onNamed();
     });
 
     // iOS 12 can leave the page pushed up after the keyboard closes.
