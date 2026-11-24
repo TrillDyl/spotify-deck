@@ -10,4 +10,10 @@ playing on your laptop or phone, with no Bluetooth needed.
 4. Once it works, deploy it to GitHub Pages and open it on the iPad.
 5. Lock the iPad to the deck: `docs/kiosk-lockdown.md`.
 
+## Working on it
+- Tests: `node --test tests/*.test.js` (no install needed). GitHub runs them on every push.
+- Try it without Spotify: `./serve.sh`, then http://127.0.0.1:8888/tests/mock.html
+- Before committing a change to the deck, run `node tools/stamp.js`. The iPad keeps an offline copy
+  and only fetches a new one when that stamp changes.
+
 To build it with Claude Code, open this folder and start with milestone 1 in `CLAUDE.md`.

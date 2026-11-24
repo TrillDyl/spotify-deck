@@ -21,6 +21,9 @@ var DECK_CONFIG = {
 
   POLL_PLAYING_MS: 3000,
   POLL_IDLE_MS: 10000,
+  POLL_QUIET_MS: 20000,                // after nothing has played, and nobody's touched it, for:
+  QUIET_AFTER_MS: 10 * 60 * 1000,
+  POLL_STUCK_MS: 60000,                // a poll that takes this long is given up on
   SETTINGS_LONG_PRESS_MS: 2000,
   IDLE_AFTER_PAUSE_MS: 5 * 60 * 1000,  // paused this long → idle clock
   SHEET_TIMEOUT_MS: 45000              // close an untouched picker or settings sheet

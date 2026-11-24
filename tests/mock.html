@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- The real deck with a fake Spotify: ./serve.sh, then http://127.0.0.1:8888/tests/mock.html -->
+<script>
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '../index.html', false);
+  xhr.send();
+  document.open();
+  document.write(xhr.responseText
+    .replace(' manifest="deck.appcache"', '')
+    .replace('<head>', '<head><base href="../">')
+    .replace('<script src="js/version.js">', '<script src="tests/mock-spotify.js"><\/script><script src="js/version.js">'));
+  document.close();
+</script>

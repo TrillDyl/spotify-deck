@@ -1,0 +1,21 @@
+CACHE MANIFEST
+# Written by tools/stamp.js: 9990f71b33
+
+CACHE:
+./
+index.html
+icon.png
+css/deck.css
+css/records.css
+js/version.js
+js/config.js
+js/log.js
+js/auth.js
+js/spotify.js
+js/queue.js
+js/browse.js
+js/records.js
+js/deck.js
+
+NETWORK:
+*

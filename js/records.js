@@ -15,6 +15,7 @@ var Records = (function () {
   var VIEW_KEY = 'deck.shelfView';
   var MAX_ALBUMS = 1000;
   var SIDE_MAX_MS = 25 * 60 * 1000;   // a longer disc is cut into more records, like a real LP
+  var SHELF_CHUNK = 60;               // records put on the shelf at a time
   var SHELF_TIMEOUT_MS = 2 * 60 * 1000;
   var GRACE_MS = 4000;                // after a command, polls may still show the old state
 
@@ -26,7 +27,7 @@ var Records = (function () {
   var SIZES = { lp: { R: 320, label: 106 }, seven: { R: 187, label: 80 } };
   var LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
-  var api = null;   // from deck.js: state, toast, actionError, afterAction, isNoDevice, openDevices, wake
+  var api = null;   // from deck.js: state, toast, actionError, command, afterAction, isNoDevice, openDevices, useDevice, wake
   var root = null;  // the turntable while record mode is on
   var els = {};
   var rec = null;   // the record on the platter
@@ -126,6 +127,21 @@ var Records = (function () {
     return -1;
   }
 
+  // Spotify may play another copy of a song that isn't available here, under a different URI, and
+  // no longer says which song it stands for. While our side is playing, go by name and length.
+  function matchTrack(s, item) {
+    var i = indexIn(s, item.uri);
+    for (var j = 0; i < 0 && j < s.tracks.length; j++) {
+      if (s.tracks[j].name === item.name && Math.abs(s.tracks[j].ms - (item.duration_ms || 0)) < 3000) i = j;
+    }
+    return i;
+  }
+
+  function ourIndex(item) {
+    if (!item) return -1;
+    return run.expect ? matchTrack(side(), item) : indexIn(side(), item.uri);
+  }
+
   // ---- arm geometry ---------------------------------------------------------
   function geom() {
     var g = SIZES[rec && rec.seven ? 'seven' : 'lp'];
@@ -172,7 +188,7 @@ var Records = (function () {
       if (!api.isNoDevice(err)) throw err;
       return new Promise(function (resolve, reject) {
         api.openDevices(function (device) {
-          api.state.deviceId = device.id;
+          api.useDevice(device.id);
           Spotify.playItems(body, device.id).then(resolve, reject);
         });
       });
@@ -193,12 +209,15 @@ var Records = (function () {
       offset: { position: t.i },
       position_ms: Math.round(t.into)
     };
+    api.command();
     send(body).then(function () {
       run.cmdAt = Date.now();
-      // In order, and silence after the last track.
-      Spotify.setShuffle(false).catch(quiet);
-      Spotify.setRepeat('off').catch(quiet);
       api.afterAction();
+      // In order, and silence after the last track. One at a time: Spotify doesn't promise to run
+      // player commands in the order they were sent.
+      return Spotify.setShuffle(false).catch(quiet).then(function () {
+        return Spotify.setRepeat('off').catch(quiet);
+      });
     }, function (err) {
       run.expect = false;
       motor = false;
@@ -212,6 +231,7 @@ var Records = (function () {
     setArmMs(armMs());
     run.expect = false;
     run.cmdAt = Date.now();
+    api.command();
     Spotify.pause().then(api.afterAction, quiet);
   }
 
@@ -227,7 +247,7 @@ var Records = (function () {
     if (!rec || drag) return;
     if (Date.now() - run.cmdAt < GRACE_MS) return;
     var s = side(), item = p && p.item, playing = !!(p && p.is_playing);
-    var idx = item ? indexIn(s, item.uri) : -1;
+    var idx = ourIndex(item), at = (p && p.progress_ms) || 0;
 
     if (idx >= 0 && playing) {
       // Our side is playing, maybe after a reload or a resume from the phone.
@@ -240,9 +260,16 @@ var Records = (function () {
     }
     if (!run.expect) return;
 
-    if (run.idx === s.tracks.length - 1 && run.remaining < 12000) {
+    // Near the end by the last poll, or by the clock if polls were missed. Paused partway through
+    // a song of ours isn't the end.
+    var nearEnd = (run.idx === s.tracks.length - 1 && run.remaining < 12000) || armMs() >= s.ms - 12000;
+    var midSong = idx >= 0 && at > 1500 && (item.duration_ms || 0) - at > 12000;
+    if (nearEnd && !midSong) {
       // The side has ended. Spotify's Autoplay may have started something else: stop it.
-      if (playing) Spotify.pause().then(api.afterAction, quiet);
+      if (playing) {
+        api.command();
+        Spotify.pause().then(api.afterAction, quiet);
+      }
       enterRunout();
       return;
     }
@@ -260,7 +287,7 @@ var Records = (function () {
   }
 
   function ourTrackPlaying() {
-    return !!rec && api.state.playing && indexIn(side(), api.state.uri) >= 0;
+    return !!rec && api.state.playing && ourIndex(api.state.item) >= 0;
   }
 
   // ---- controls -------------------------------------------------------------
@@ -584,7 +611,8 @@ var Records = (function () {
   // ---- bookshelf ------------------------------------------------------------
   var shelf = {
     albums: null, sort: 'added', view: 'covers', filter: '', seq: 0, timer: null,
-    observer: null, artObserver: null, colors: {}, queue: [], busy: 0
+    observer: null, artObserver: null, colors: {}, queue: [], busy: 0,
+    list: [], shown: 0, seen: {}  // albums to show, how many are on the shelf so far, letters passed
   };
   var sleeve = { album: null, spine: null };
 
@@ -624,6 +652,17 @@ var Records = (function () {
     toggle($('shelf'), 'hidden', true);
     clearTimeout(shelf.timer);
     shelf.seq++;
+    emptyRack();  // a full shelf is thousands of elements, so don't keep it while it's closed
+  }
+
+  function emptyRack() {
+    if (shelf.observer) shelf.observer.disconnect();
+    if (shelf.artObserver) shelf.artObserver.disconnect();
+    shelf.queue = [];
+    shelf.list = [];
+    shelf.shown = 0;
+    shelf.seen = {};
+    $('shelf-rack').innerHTML = '';
   }
 
   // Nobody closes a forgotten shelf on a kiosk, so it closes itself.
@@ -692,10 +731,7 @@ var Records = (function () {
   function renderShelf() {
     var rack = $('shelf-rack');
     var albums = sorted().filter(matches);
-    if (shelf.observer) shelf.observer.disconnect();
-    if (shelf.artObserver) shelf.artObserver.disconnect();
-    shelf.queue = [];
-    rack.innerHTML = '';
+    emptyRack();
     rack.className = 'shelf-rack is-' + shelf.view;
     var total = shelf.albums.length;
     $('shelf-count').textContent = !total ? '' : shelf.filter ? albums.length + ' of ' + total
@@ -706,7 +742,7 @@ var Records = (function () {
     Array.prototype.forEach.call(document.querySelectorAll('[data-shelf-view]'), function (b) {
       toggle(b, 'on', b.getAttribute('data-shelf-view') === shelf.view);
     });
-    rack._albums = albums;
+    shelf.list = albums;
     if (!albums.length) {
       rack.innerHTML = '<div class="shelf-note">' + (total
         ? 'No records match “' + escapeHtml(shelf.filter) + '”.'
@@ -714,23 +750,38 @@ var Records = (function () {
       renderRail([]);
       return;
     }
-    var frag = document.createDocumentFragment(), seen = {}, letters = [], uncolored = [], covers = [];
-    albums.forEach(function (a, i) {
+    renderRail(shelf.sort === 'added' ? [] : albums.map(letterOf));
+    fillShelf();
+  }
+
+  // Put the next records on the shelf.
+  function stockShelf() {
+    var rack = $('shelf-rack'), from = shelf.shown;
+    var frag = document.createDocumentFragment(), uncolored = [], covers = [];
+    shelf.list.slice(from, from + SHELF_CHUNK).forEach(function (a, n) {
+      var i = from + n;
       var item = shelf.view === 'covers' ? makeCover(a) : makeSpine(a);
       item.setAttribute('data-i', i);
       if (shelf.view === 'covers') covers.push(item);
       else if (!shelf.colors[a.id]) uncolored.push(item);
       if (shelf.sort !== 'added') {
         var l = letterOf(a);
-        if (!seen[l]) { seen[l] = true; letters.push(l); item.setAttribute('data-letter', l); }
+        if (!shelf.seen[l]) { shelf.seen[l] = true; item.setAttribute('data-letter', l); }
       }
       frag.appendChild(item);
     });
     rack.appendChild(frag);
-    renderRail(letters);
+    shelf.shown = Math.min(shelf.list.length, from + SHELF_CHUNK);
     if (shelf.observer) uncolored.forEach(function (s) { shelf.observer.observe(s); });
     if (shelf.artObserver) covers.forEach(function (c) { shelf.artObserver.observe(c); });
     else covers.forEach(function (c) { loadCover(c, true); });
+  }
+
+  // Keep the shelf stocked a little past what's on screen.
+  function fillShelf() {
+    var body = $('shelf-body');
+    if ($('shelf').classList.contains('hidden')) return;
+    while (shelf.shown < shelf.list.length && body.scrollHeight - body.scrollTop - body.clientHeight < 1200) stockShelf();
   }
 
   function escapeHtml(s) {
@@ -795,8 +846,13 @@ var Records = (function () {
   }
 
   function jump(letter) {
-    var spine = $('shelf-rack').querySelector('[data-letter="' + letter + '"]');
+    function find() { return $('shelf-rack').querySelector('[data-letter="' + letter + '"]'); }
+    if (shelf.list.map(letterOf).indexOf(letter) < 0) return;
+    while (!find() && shelf.shown < shelf.list.length) stockShelf();
+    stockShelf();  // enough below it to scroll it to the top
+    var spine = find();
     if (spine) $('shelf-body').scrollTop = spine.offsetTop;
+    fillShelf();
   }
 
   // Spine colours come from the cover: shrink it to 8×8 and average.
@@ -830,7 +886,7 @@ var Records = (function () {
   function pumpColors() {
     while (shelf.busy < 4 && shelf.queue.length) {
       var spine = shelf.queue.shift();
-      var a = spine.parentNode && $('shelf-rack')._albums[Number(spine.getAttribute('data-i'))];
+      var a = spine.parentNode && shelf.list[Number(spine.getAttribute('data-i'))];
       if (!a) continue;
       if (shelf.colors[a.id]) { paintSpine(spine, shelf.colors[a.id]); continue; }
       shelf.busy++;
@@ -983,7 +1039,7 @@ var Records = (function () {
     $('sleeve-close').addEventListener('click', closeSleeve);
     $('shelf').addEventListener('touchstart', bumpShelf);
     $('shelf').addEventListener('mousedown', bumpShelf);
-    $('shelf-body').addEventListener('scroll', bumpShelf);
+    $('shelf-body').addEventListener('scroll', function () { bumpShelf(); fillShelf(); });
     Array.prototype.forEach.call(document.querySelectorAll('[data-shelf-sort]'), function (b) {
       b.addEventListener('click', function () {
         shelf.sort = b.getAttribute('data-shelf-sort');
@@ -995,7 +1051,7 @@ var Records = (function () {
     // Pull a record out: it slides up, then the sleeve opens.
     $('shelf-rack').addEventListener('click', function (e) {
       var spine = e.target.closest && e.target.closest('.spine, .cover');
-      var a = spine && $('shelf-rack')._albums[Number(spine.getAttribute('data-i'))];
+      var a = spine && shelf.list[Number(spine.getAttribute('data-i'))];
       if (!a) return;
       toggle(spine, 'pulled', true);
       setTimeout(function () { openSleeve(a, spine); }, 220);
@@ -1040,6 +1096,8 @@ var Records = (function () {
     onPlayer: onPlayer,
     paint: paint,
     openShelf: openShelf,
-    closeShelf: closeShelf
+    closeShelf: closeShelf,
+    _buildRecord: buildRecord,  // for the tests
+    _matchTrack: matchTrack
   };
 })();

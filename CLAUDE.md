@@ -15,11 +15,16 @@ Home Screen and later hard-locked as a kiosk.
   Up next button. Up next is a scrolling list of the whole queue: tap a song to skip to it, swipe
   left to reveal **Remove**. The queue is only fetched while it's open, and the open/closed choice
   is saved per device
+- Shuffle and repeat buttons, and tapping "Playing on…" opens the device picker. For episodes,
+  previous and next become −15 s and +30 s
 - **Browse**: a sheet (button on the now-playing screen, or tap the idle clock) listing all the user's
-  playlists to play (their own and public ones they've saved, refetched each time it opens), with
-  a search box on top for songs. Tap a song to play it within its album,
-  or **+ Queue** to queue it. If no device is active, play targets the last device seen, then
-  falls back to asking which device to play on
+  playlists with covers (their own and public ones they've saved, refetched each time it opens), with
+  a search box on top for songs. Tap a playlist to open it: Play, Shuffle, and (if the user owns it or
+  collaborates on it) its songs with art and artists. Tap a song to play from there. Every song has
+  queue and add-to-playlist buttons. Searching from inside an own playlist adds straight to it. If no
+  device is active, play targets the last device seen (kept across reloads), then falls back to asking
+  which device to play on
+- **New playlist**: from Browse (opens it, empty) or from the picker (adds the song). Private
 - **Record player mode** (Settings → Mode): a shelf of saved albums (`GET /me/albums`), shown
   as covers face-out (the default) or as spines, with a search box, sorting and an A–Z rail.
   Cover images load only near the screen and unload when far away, to fit the iPad's 1 GB RAM.
@@ -27,7 +32,8 @@ Home Screen and later hard-locked as a kiosk.
   shows the cover. Albums split into sides by disc and length (7" for
   short singles). A side plays as a `uris` list with shuffle and repeat off. Sound only plays
   with the platter on (Start/Stop) and the needle down; the tonearm is the only way to change
-  songs. A side ends in the run-out groove (manual arm), and Flip needs the arm at rest. If
+  songs. The shelf is built 60 albums at a time and emptied on close. A side ends in the run-out
+  groove (manual arm), and Flip needs the arm at rest. If
   Autoplay starts a song after the side, the deck pauses it. Code: `js/records.js`,
   `css/records.css`
 - Update on its own when the track changes, with no user action
@@ -42,16 +48,20 @@ Home Screen and later hard-locked as a kiosk.
   or rubber-band scrolling
 - Settings (log out, choose device, brightness and dim options) are hidden behind a **2-second
   long-press in the top-left corner**
-- Recover on its own from network drops, expired tokens and Spotify 5xx errors; back off on
-  429s using `Retry-After`
+- Recover on its own from network drops, expired tokens, requests that never answer and Spotify 5xx
+  errors; back off on 429s. Polling must never stay stopped (there's a watchdog in `tick()`)
+- Start and reload without a network (`deck.appcache`). Never call `location.reload()` directly: use
+  `safeReload()`, because a failed reload leaves an error page nobody can close
+- Never open Spotify's login page on iOS: it can't run there and there's no way back
 - Avoid burn-in: drift the idle clock's position slowly
 
 ## Hardware and platform
 - **Target device:** iPad mini 2 on **iOS 12.5.8**, the last iOS it can run, so this is
   permanent. Its browser is Mobile Safari 12.1. A7 chip, 1 GB RAM, 2048×1536 screen.
   - The current Spotify iOS app doesn't support iOS 12, so the web deck is the only option.
-  - With 1 GB RAM, keep the DOM small, use 300px album art and blur a small image rather than a
-    large one, and avoid animations that run all the time.
+  - With 1 GB RAM, keep the DOM small, load covers in lists only near the screen, and blur a small
+    image rather than a large one. The now-playing art fills 983px, so it uses Spotify's 640px image.
+  - Animations that run all the time (the progress bar) may only change `transform` or `opacity`.
   - Home Screen web apps on iOS 12 have **their own `localStorage`, separate from Safari's**.
   - **Spotify's login page doesn't run on iOS 12**: its scripts use optional chaining, which
     Safari 12 can't parse (checked Nov 2026). So the iPad never logs in itself. A computer logs
@@ -62,8 +72,8 @@ Home Screen and later hard-locked as a kiosk.
     the token once (`deck.pairUsed`), and ignores it after that. The QR library loads from cdnjs
     only on the computer.
 - **Dev machine:** MacBook Air (Apple silicon)
-- Lockdown plan: test with Guided Access, then supervise the iPad with Apple Configurator and
-  use Single App Mode. See `docs/kiosk-lockdown.md`.
+- Lockdown: Guided Access (Dylan's choice, Nov 2026). Single App Mode doesn't work reliably with Home
+  Screen web apps. See `docs/kiosk-lockdown.md`.
 
 ## Tech decisions
 - **Plain HTML, CSS and JS. No build step and no framework.** It has to run on old Mobile Safari
@@ -86,9 +96,22 @@ Home Screen and later hard-locked as a kiosk.
   - Store the access token, refresh token and expiry in `localStorage`. Spotify may return a
     **new refresh token** on refresh: always save it if present.
   - Refresh proactively about 5 minutes before expiry, and on any 401.
-- **Polling:** `GET /v1/me/player` every ~3 s while playing and every ~10 s when idle or paused.
-  Between polls, move the progress bar forward locally. Poll immediately after any control
-  action.
+  - PKCE refresh tokens work once. A refresh is given 30 s but never aborted, and a late answer is
+    still saved, because it holds the only token that works from then on.
+  - `invalid_grant` isn't retried (Spotify's rule). The access token is used until it runs out.
+- **Polling:** `GET /v1/me/player` every ~3 s while playing, ~10 s when idle or paused, and ~20 s
+  after 10 minutes of neither music nor touches. Between polls, move the progress bar forward
+  locally. Poll immediately after any control action. Call `command()` when sending a player command:
+  polls sent before or during one are dropped, since they can still show the old state.
+- **429s:** Spotify doesn't expose `Retry-After` to browsers (checked Nov 2026), so `js/spotify.js`
+  doubles its wait each time. A rate limit blocks every call. A `QUOTA_EXCEEDED` (Development Mode's
+  separate quota, since July 2026, limits unpublished and grouped by endpoint) blocks only its group.
+- **Offline copy:** AppCache, because the iPad is frozen at iOS 12.5.8, it updates all files together
+  and it needs no running process. Service workers had cache and update bugs in iOS 12 Home Screen
+  apps and would handle every poll. **Run `node tools/stamp.js` before committing a change to the
+  deck**, or the iPad keeps the old version (a test checks this). Not yet checked on the iPad; if it
+  doesn't work there, use a network-first service worker.
+- **CSP** in `index.html`: scripts from this site and cdnjs, connections to this site and Spotify.
 - **Hosting:**
   - Local dev: `./serve.sh` → `http://127.0.0.1:8888/`. Spotify requires the loopback **IP**,
     not `localhost`.
@@ -127,8 +150,14 @@ Player endpoints used (playback control needs Premium):
   live in memory, and are dropped when a different playlist or album starts
 - `GET /v1/search?type=track`: **max `limit` is 10** since Feb 2026 (default 5); page with
   `offset`. The deck stops at 50 results to keep the DOM small
-- `GET /v1/playlists/{id}/items` only works for playlists the user owns or collaborates on (403
-  otherwise), so Browse plays playlists from the top rather than listing their songs
+- `GET /v1/playlists/{id}/items` (max 50 a page) only works for playlists the user owns or
+  collaborates on (403 otherwise), so followed playlists open with just Play and Shuffle. Each row
+  holds the song as `item` (was `track`)
+- `POST /v1/me/playlists` makes a playlist. Some Development Mode apps report 403s. Not yet checked
+  with this app
+- Cover image URLs for playlists expire within a day, so they aren't stored
+- The Developer Policy rules out content from other services (so no LRCLIB lyrics) and voice control
+- The order of player commands isn't guaranteed: send them one at a time
 
 Scopes to request (trim any the API no longer needs):
 `user-read-playback-state user-modify-playback-state user-read-currently-playing
@@ -139,12 +168,19 @@ playlist-modify-public user-library-read user-library-modify`
 ```
 index.html          single page: idle clock, sheets, hidden settings, and the layout <template>
 css/deck.css        all styles
+js/version.js       written by tools/stamp.js
 js/config.js        CLIENT_ID, polling and timeout settings (edit this)
+js/log.js           the last 30 errors, for Settings → Diagnostics
 js/auth.js          PKCE login, callback handling, token storage and refresh, QR pairing
 js/spotify.js       thin API wrapper: auth headers, 401 retry, 429 backoff
-js/deck.js          polling loop, layout, controls, picker, long-press settings
+js/queue.js         Up next: parsing it and hiding removed songs
+js/browse.js        Browse, a playlist's songs, search, the picker, new playlists
+js/deck.js          polling loop, layout, controls, sheets, long-press settings, diagnostics
 js/records.js       record player mode: shelf, sleeve, sides, turntable and tonearm
 css/records.css     record player styles (turntable drawn at 1024×768 and scaled)
+deck.appcache       files the iPad keeps for offline use; written by tools/stamp.js
+tools/stamp.js      run before committing a change to the deck
+tests/              node --test tests/*.test.js; mock.html is the deck with a fake Spotify
 docs/               setup and lockdown guides for Dylan
 serve.sh            local static server on 127.0.0.1:8888
 ```
@@ -160,18 +196,18 @@ serve.sh            local static server on 127.0.0.1:8888
   change and every 2 minutes.
 
 ## Milestones
-Milestones 1–4 are built and pass in Chrome against mocked API responses. A real login reached
+Milestones 1–4 are built and pass in Chrome against `tests/mock.html`. A real login reached
 the iPad through QR pairing on Nov 23, 2026. Controls, like, the picker and polish still need
 checking on the iPad with real playback.
 
 1. [x] Auth works: log in (on a computer, then QR pairing to the iPad)
 2. [ ] Controls: prev / play-pause / next / like, with optimistic UI updates
 3. [ ] Add-to-playlist picker (only playlists the user owns or collaborates on)
-   - Browse (play playlists, search and queue songs) is built and passes against mocks
+   - Browse (open and play playlists, search, queue, add, new playlist) is built and passes against mocks
 4. [ ] Polish: blurred album-art background, smooth track transitions, progress bar, idle clock
    (the "blur" is a 10×10 canvas scaled up, which is far cheaper than a CSS blur on the A7)
 5. [ ] Deploy to GitHub Pages, add that redirect URI, and test on the real iPad
-6. [ ] Kiosk hardening (see requirements above), then lock down with Single App Mode
+6. [ ] Kiosk hardening (see requirements above), then lock down with Guided Access
 
 ## Working with Dylan
 - He'll test on the real iPad. Big, obvious touch targets matter more than density.

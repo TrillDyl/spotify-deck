@@ -1,0 +1,15 @@
+name: test
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test tests/*.test.js
+      # Safari 12.1 parses ES2019 and no later.
+      - run: for f in js/*.js; do npx --yes acorn@8.14.0 --ecma2019 --silent "$f"; done

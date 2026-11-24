@@ -9,8 +9,11 @@ var DeckAuth = (function () {
   var REFRESH_EARLY_MS = 5 * 60 * 1000;
   // Spotify refresh tokens last 6 months from login, and refreshing doesn't extend that.
   var LOGIN_LIFETIME_MS = 180 * 24 * 60 * 60 * 1000;
+  var TIMEOUT_MS = 30000;
+  var LATE_MS = 2 * 60 * 1000;
 
   var refreshing = null;
+  var lateUntil = 0;  // a timed-out refresh may still be answered until then
 
   // ---- storage --------------------------------------------------------------
   function read(key) {
@@ -23,9 +26,11 @@ var DeckAuth = (function () {
     } catch (e) {}
   }
 
-  function authError(code, message) {
+  // status is there so a network failure here reads the same as one from the Web API (0).
+  function authError(code, message, status) {
     var e = new Error(message || code);
     e.code = code;
+    if (code === 'network') e.status = status || 0;
     return e;
   }
 
@@ -140,8 +145,16 @@ var DeckAuth = (function () {
         if (res.ok && data.access_token) return data;
         // invalid_grant means the refresh token is dead: the only fix is logging in again.
         if (res.status === 400 && data.error === 'invalid_grant') throw authError('logged_out', 'invalid_grant');
-        throw authError('network', 'token endpoint ' + res.status);
+        throw authError('network', 'token endpoint ' + res.status, res.status);
       });
+    });
+  }
+
+  // Stop waiting after a while. The request itself isn't cancelled: see refresh().
+  function limit(promise) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(authError('network', 'token endpoint timeout')); }, TIMEOUT_MS);
+      promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
     });
   }
 
@@ -190,13 +203,13 @@ var DeckAuth = (function () {
     if (error) return Promise.resolve(error === 'access_denied' ? 'Login was cancelled.' : 'Spotify said: ' + error);
     if (!pkce || pkce.state !== params.get('state')) return Promise.resolve('Login expired. Try again.');
 
-    return postToken({
+    return limit(postToken({
       grant_type: 'authorization_code',
       code: code,
       redirect_uri: DECK_CONFIG.REDIRECT_URI,
       client_id: DECK_CONFIG.CLIENT_ID,
       code_verifier: pkce.verifier
-    }).then(function (data) {
+    })).then(function (data) {
       saveTokens(data, Date.now());
       return null;
     }, function () {
@@ -204,26 +217,56 @@ var DeckAuth = (function () {
     });
   }
 
+  // A refresh token works only once, so an answer that comes after the timeout is still saved:
+  // it holds the only token that works from then on.
   function refresh() {
     if (refreshing) return refreshing;
     var tokens = read(STORAGE_KEY);
     if (!tokens || !tokens.refresh_token) return Promise.reject(authError('logged_out'));
+    if (tokens.dead) return Promise.resolve().then(function () { return lastToken(tokens); });
 
-    refreshing = postToken({
+    var used = tokens.refresh_token;
+    var answer = postToken({
       grant_type: 'refresh_token',
-      refresh_token: tokens.refresh_token,
+      refresh_token: used,
       client_id: DECK_CONFIG.CLIENT_ID
     }).then(function (data) {
-      refreshing = null;
+      var now = read(STORAGE_KEY);
+      // Logged out or logged in again while waiting: this answer is for an older login.
+      if (!now || now.refresh_token !== used) throw authError('network', 'login changed');
+      lateUntil = 0;
       return saveTokens(data).access_token;
+    });
+
+    refreshing = limit(answer).then(function (token) {
+      refreshing = null;
+      return token;
     }, function (err) {
       refreshing = null;
-      if (err.code === 'logged_out') write(STORAGE_KEY, null);
+      if (err.message === 'token endpoint timeout') lateUntil = Date.now() + LATE_MS;
+      var now = read(STORAGE_KEY);
+      // A late answer to an earlier refresh may have saved a newer token.
+      if (now && now.refresh_token !== used && now.expires_at > Date.now()) return now.access_token;
+      if (err.code === 'logged_out') {
+        if (Date.now() < lateUntil) throw authError('network', 'waiting for a late refresh');
+        DeckLog.add('login', 'Spotify rejected the refresh token (logged in ' +
+          (now && now.login_at ? Math.round((Date.now() - now.login_at) / 86400000) + ' days ago' : 'at an unknown time') + ')');
+        if (now) { now.dead = true; write(STORAGE_KEY, now); }
+        return lastToken(now);
+      }
       // A network failure isn't fatal: keep using the current token while it's still valid.
-      else if (tokens.expires_at > Date.now()) return tokens.access_token;
+      if (now && now.expires_at > Date.now()) return now.access_token;
       throw err;
     });
     return refreshing;
+  }
+
+  // The refresh token is dead (Spotify says not to retry it). The access token may have a little
+  // time left; after that the login is gone.
+  function lastToken(tokens) {
+    if (tokens && tokens.expires_at > Date.now()) return tokens.access_token;
+    write(STORAGE_KEY, null);
+    throw authError('logged_out', 'invalid_grant');
   }
 
   // Resolves to a valid access token, refreshing it first if it expires within 5 minutes.
@@ -257,7 +300,7 @@ var DeckAuth = (function () {
     if (!p) return Promise.resolve(null);
     window.history.replaceState(null, '', DECK_CONFIG.REDIRECT_URI);
     var tag = p.token.slice(-16);
-    if (isLoggedIn() || read(PAIR_USED_KEY) === tag) return Promise.resolve(null);
+    if ((isLoggedIn() && !read(STORAGE_KEY).dead) || read(PAIR_USED_KEY) === tag) return Promise.resolve(null);
 
     write(PAIR_USED_KEY, tag);
     write(STORAGE_KEY, { access_token: '', refresh_token: p.token, expires_at: 0, login_at: p.since });
@@ -301,6 +344,7 @@ var DeckAuth = (function () {
     forceRefresh: forceRefresh,
     isLoggedIn: isLoggedIn,
     loginExpiresAt: loginExpiresAt,
-    logout: logout
+    logout: logout,
+    _sha256js: sha256js  // for the tests
   };
 })();

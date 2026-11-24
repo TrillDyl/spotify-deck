@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" manifest="deck.appcache">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
@@ -8,7 +8,13 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Deck">
   <meta name="format-detection" content="telephone=no">
+  <meta name="referrer" content="no-referrer">
+  <!-- The login lives in this page's storage, so only run our own scripts (and the QR code maker)
+       and only talk to Spotify. -->
+  <meta http-equiv="Content-Security-Policy" content="script-src 'self' https://cdnjs.cloudflare.com; connect-src 'self' https://api.spotify.com https://accounts.spotify.com; object-src 'none'; base-uri 'self'; form-action 'none'">
   <title>Spotify Deck</title>
+  <link rel="apple-touch-icon" href="icon.png">
+  <link rel="icon" href="icon.png">
   <link rel="stylesheet" href="css/deck.css">
   <link rel="stylesheet" href="css/records.css">
 </head>
@@ -23,9 +29,13 @@
       <h1>Spotify Deck</h1>
       <p id="login-msg" class="login-msg"></p>
       <button id="login-btn" class="big-btn">Connect Spotify</button>
-      <p id="login-hint" class="fine login-hint">Spotify's login page doesn't work on iOS 12. Log in
-        at this address on a computer instead, hold its top-left corner for 2 seconds, and choose
-        <b>Send login to iPad</b>.</p>
+      <p id="login-hint" class="fine login-hint hidden">Spotify's login page doesn't work on iOS 12,
+        so the login comes from a computer:<br><br>
+        1. On the computer, open this deck's address and connect Spotify.<br>
+        2. Hold its top-left corner for 2 seconds and choose <b>Send login to iPad</b>.<br>
+        3. On this iPad, end Guided Access and delete the Deck icon.<br>
+        4. Scan the code with the Camera app and tap the banner.<br>
+        5. Tap <b>Share → Add to Home Screen</b>, then open Deck.</p>
     </div>
   </section>
 
@@ -37,6 +47,7 @@
     <div id="clock" class="clock">
       <div id="clock-time" class="clock-time"></div>
       <div id="clock-date" class="clock-date"></div>
+      <div id="clock-note" class="clock-note"></div>
     </div>
   </section>
 
@@ -87,16 +98,17 @@
 
   <div id="picker" class="sheet hidden">
     <div class="sheet-header">
-      <span>Add to playlist</span>
+      <span class="sheet-title">Add to playlist<span id="picker-song" class="sheet-sub"></span></span>
       <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <ul id="picker-list" class="sheet-list scroll"></ul>
   </div>
 
-  <!-- Browse: your playlists, or song search once something is typed -->
+  <!-- Browse: your playlists, one playlist's songs, or song search once something is typed -->
   <div id="browse" class="sheet hidden">
     <div class="sheet-header">
-      <span>Browse</span>
+      <button id="browse-back" class="ctl sheet-back hidden" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg></button>
+      <span id="browse-title" class="sheet-title">Browse</span>
       <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </div>
     <form id="search-form" class="search" action="#">
@@ -106,6 +118,21 @@
       <button id="search-clear" class="search-clear hidden" type="button" aria-label="Clear search"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
     </form>
     <ul id="browse-list" class="sheet-list scroll"></ul>
+  </div>
+
+  <div id="newpl" class="sheet hidden">
+    <div class="sheet-header">
+      <span class="sheet-title">New playlist<span id="newpl-song" class="sheet-sub"></span></span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <form id="newpl-form" action="#">
+      <div class="search">
+        <input id="newpl-name" class="search-input" type="text" placeholder="Playlist name" maxlength="100"
+          autocomplete="off" autocorrect="off" spellcheck="false">
+      </div>
+      <button id="newpl-create" class="wide-btn newpl-create">Create</button>
+      <p id="newpl-msg" class="newpl-msg"></p>
+    </form>
   </div>
 
   <div id="devices" class="sheet hidden">
@@ -144,10 +171,20 @@
       </div>
       <button id="devices-btn" class="wide-btn">Choose device</button>
       <button id="pair-btn" class="wide-btn">Send login to iPad</button>
+      <button id="diag-btn" class="wide-btn">Diagnostics</button>
       <button id="reload-btn" class="wide-btn">Reload</button>
       <button id="logout-btn" class="wide-btn danger">Log out</button>
       <p id="login-expiry" class="fine"></p>
     </div>
+  </div>
+
+  <!-- What went wrong lately: the iPad has no console -->
+  <div id="diag" class="sheet hidden">
+    <div class="sheet-header">
+      <span>Diagnostics</span>
+      <button class="ctl sheet-close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></button>
+    </div>
+    <ul id="diag-list" class="sheet-list diag-list scroll"></ul>
   </div>
 
   <!-- Pairing: a QR code that hands this browser's login to the iPad -->
@@ -177,24 +214,26 @@
         <div class="album" data-t="album"></div>
         <div class="seek" data-seek-control>
           <div class="progress"><div class="progress-fill" data-p="s"></div></div>
-          <div class="seek-thumb" data-p="l"></div>
+          <div class="seek-rail" data-p="x"><div class="seek-thumb"></div></div>
         </div>
-        <div class="times"><span data-t="elapsed"></span><span class="device" data-t="status"></span><span data-t="duration"></span></div>
+        <div class="times"><span data-t="elapsed"></span><button class="device" data-action="devices" aria-label="Choose device"><svg viewBox="0 0 24 24"><path d="M17 2H7c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-5 2c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2zm0 16c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg><span data-t="status"></span></button><span data-t="duration"></span></div>
         <div class="controls">
           <button class="ctl ctl-like" data-action="like" aria-label="Like">
             <svg class="i-heart-off" viewBox="0 0 24 24"><path d="M16.5 3c-1.74 0-3.41.81-4.5 2.09C10.91 3.81 9.24 3 7.5 3 4.42 3 2 5.42 2 8.5c0 3.78 3.4 6.86 8.55 11.54L12 21.35l1.45-1.32C18.6 15.36 22 12.28 22 8.5 22 5.42 19.58 3 16.5 3zm-4.4 15.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></svg>
             <svg class="i-heart-on" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
           </button>
-          <button class="ctl" data-action="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+          <button class="ctl" data-action="prev" aria-label="Previous"><svg class="i-skip" viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg><svg class="i-ep" viewBox="0 0 24 24"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/><text x="12" y="15.6" text-anchor="middle" font-size="7" font-weight="700">15</text></svg></button>
           <button class="ctl ctl-main" data-action="play" aria-label="Play or pause">
             <svg class="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
             <svg class="i-pause" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
           </button>
-          <button class="ctl" data-action="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+          <button class="ctl" data-action="next" aria-label="Next"><svg class="i-skip" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg><svg class="i-ep" viewBox="0 0 24 24"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/><text x="12" y="15.6" text-anchor="middle" font-size="7" font-weight="700">30</text></svg></button>
           <button class="ctl" data-action="add" aria-label="Add to playlist"><svg viewBox="0 0 24 24"><path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"/></svg></button>
           <button class="ctl" data-action="browse" aria-label="Browse playlists and search"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></button>
         </div>
         <div class="c-extras">
+          <button class="ctl c-mode c-shuffle" data-action="shuffle" aria-label="Shuffle"><svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></button>
+          <button class="ctl c-mode c-repeat" data-action="repeat" aria-label="Repeat"><svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/><text class="i-one" x="12" y="14.6" text-anchor="middle" font-size="7.5" font-weight="700">1</text></svg></button>
           <div class="c-vol" data-show="volume">
             <svg class="c-volicon" viewBox="0 0 24 24"><path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z"/></svg>
             <div class="c-voltrack" data-vol-control="slider" role="slider" aria-label="Volume"><div class="c-volfill" data-v="w"></div><div class="c-volthumb" data-v="l"></div></div>
@@ -260,9 +299,13 @@
     </div>
   </template>
 
+  <script src="js/version.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/log.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/spotify.js"></script>
+  <script src="js/queue.js"></script>
+  <script src="js/browse.js"></script>
   <script src="js/records.js"></script>
   <script src="js/deck.js"></script>
 </body>

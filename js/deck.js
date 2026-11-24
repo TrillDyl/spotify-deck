@@ -1,13 +1,15 @@
-// UI: boot, polling loop, layout, controls, sheets (playlists, browse, devices, settings), idle clock.
+// UI: boot, polling loop, layout, controls, sheets (devices, settings, diagnostics), idle clock.
+// Browse, the playlist picker and new playlists are in js/browse.js.
 //
 // The layout is <template id="tpl-classic"> in index.html. Its markup names what it shows and
 // the engine fills it in:
 //   data-t="title"           text (see textFor for every key)
-//   data-p="s|l"             song progress as scaleX or left %
+//   data-p="s|x"             song progress as scaleX, or as translateX of a full-width element
 //   data-v="w|l"             volume as width % or left %
 //   data-show="volume"       shown only when that data exists ("!queue" = only when it doesn't)
 //   img data-art             album art
-//   data-action="play|prev|next|like|add|browse|devices"  buttons
+//   data-action="play|prev|next|like|add|browse|devices|shuffle|repeat"  buttons. For an episode,
+//                            prev and next go back 15 s and on 30 s instead
 //   data-action="queue"      shows or hides Up next (root gets queue-open); the queue is only
 //                            fetched while it's showing
 //   data-queue-list          the whole queue as rows: scroll it, tap a song to skip to it, swipe
@@ -15,12 +17,17 @@
 //   data-vol-control         drag sideways to change the volume
 //   data-seek-control        drag along it to move through the song (root gets can-seek, and
 //                            seeking while a finger is down)
-// The layout's root gets is-playing, is-liked, has-volume, has-queue, queue-open and can-seek.
+// The layout's root gets is-playing, is-liked, is-episode, is-shuffled, is-repeat-all, is-repeat-one,
+// can-shuffle, can-repeat, has-device, has-volume, has-queue, queue-open and can-seek.
 (function () {
   var C = DECK_CONFIG;
   var SETTINGS_KEY = 'deck.settings';
+  var DEVICE_KEY = 'deck.device';
   var DIM_LEVELS = [0, 0.3, 0.6];
   var BOOT_AT = Date.now();
+  var HOUR_MS = 60 * 60 * 1000;
+  var DAY_MS = 24 * HOUR_MS;
+  var ON_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
 
   var state = {
     view: null,          // 'login' | 'deck' | 'idle'
@@ -28,14 +35,22 @@
     uri: null,
     art: { big: '', small: '' },
     playing: false,
+    playHoldUntil: 0,    // ignore polled play/pause until Spotify has caught up with a tap
     liked: false,
+    likeTouched: false,  // like was tapped, so a late answer to "is it liked?" doesn't count
+    shuffle: false,
+    repeat: 'off',       // 'off' | 'context' | 'track'
+    canShuffle: false,
+    canRepeat: false,
+    modeHoldUntil: 0,    // the same for shuffle and repeat
     device: '',
-    deviceId: '',        // last device seen playing; kept while idle so new playback can target it
+    deviceId: loadDevice(),  // last device seen; kept while idle so new playback can target it
     progressMs: 0,
     durationMs: 0,
     progressAt: 0,       // Date.now() when progressMs was measured
     pausedSince: 0,
-    wokeAt: 0,           // last tap on the idle clock
+    quietSince: 0,       // nothing playing and nobody touching since then: poll less
+    wokeAt: 0,           // last tap on the idle clock, a sheet or the turntable
     endPolled: false,
     errors: 0,
     volume: null,        // 0–100, or null when the device can't change volume
@@ -65,7 +80,7 @@
     if (state.view === view) return;
     state.view = view;
     ['login', 'deck', 'idle'].forEach(function (s) { toggle($(s), 'hidden', s !== view); });
-    if (view === 'idle') { closeSheets(); Records.closeShelf(); tickClock(true); }
+    if (view === 'idle') { if (!pairing) closeSheets(); Records.closeShelf(); tickClock(true); }
     if (view === 'deck') paint();
   }
 
@@ -90,6 +105,15 @@
     list(document, '[data-setting]').forEach(function (b) {
       toggle(b, 'on', String(settings[b.getAttribute('data-setting')]) === b.getAttribute('data-value'));
     });
+  }
+
+  function loadDevice() {
+    try { return localStorage.getItem(DEVICE_KEY) || ''; } catch (e) { return ''; }
+  }
+  function useDevice(id) {
+    if (!id || id === state.deviceId) return;
+    state.deviceId = id;
+    try { localStorage.setItem(DEVICE_KEY, id); } catch (e) {}
   }
 
   // ---- layout ---------------------------------------------------------------
@@ -135,6 +159,8 @@
     return Math.max(0, Math.min(1, ms / state.durationMs));
   }
 
+  function isEpisode() { return !!state.item && state.item.type === 'episode'; }
+
   function fmtMs(ms) {
     var s = Math.max(0, Math.floor(ms / 1000));
     return Math.floor(s / 60) + ':' + pad2(s % 60);
@@ -173,6 +199,7 @@
     if (kind === 'w') el.style.width = pct;
     else if (kind === 'l') el.style.left = pct;
     else if (kind === 's') el.style.webkitTransform = el.style.transform = 'scaleX(' + r + ')';
+    else if (kind === 'x') el.style.webkitTransform = el.style.transform = 'translateX(' + pct + ')';
   }
 
   function paint() {
@@ -180,6 +207,13 @@
     var root = layout.root;
     toggle(root, 'is-playing', state.playing);
     toggle(root, 'is-liked', state.liked);
+    toggle(root, 'is-episode', isEpisode() && state.canSeek);
+    toggle(root, 'is-shuffled', state.shuffle);
+    toggle(root, 'is-repeat-all', state.repeat === 'context');
+    toggle(root, 'is-repeat-one', state.repeat === 'track');
+    toggle(root, 'can-shuffle', state.canShuffle);
+    toggle(root, 'can-repeat', state.canRepeat);
+    toggle(root, 'has-device', !!state.device);
     toggle(root, 'can-seek', state.canSeek && state.durationMs > 0);
     toggle(root, 'has-volume', state.volume !== null);
     toggle(root, 'has-queue', state.queue.length > 0);
@@ -232,11 +266,18 @@
     return !!err && (err.reason === 'NO_ACTIVE_DEVICE' || (err.status === 404 && /device/i.test(err.message)));
   }
 
+  // Development Mode quotas can last a while, so say how long.
+  function busyText(err) {
+    if (!err || err.reason !== 'QUOTA_EXCEEDED') return 'Spotify is busy. Try again in a moment.';
+    var mins = Math.max(1, Math.ceil((err.retryAfter || 60) / 60));
+    return 'Spotify’s limit for the deck is used up. Try again in ' + mins + ' min.';
+  }
+
   function actionError(err) {
     if (err && err.code === 'logged_out') return showLogin();
     var status = err && err.status;
     if (status === 0) toast('No connection');
-    else if (status === 429) toast('Spotify is busy. Try again in a moment.');
+    else if (status === 429) toast(busyText(err));
     else if (isNoDevice(err)) {
       toast('Nothing is playing. Pick a device.');
       openDevices();
@@ -247,10 +288,21 @@
 
   // ---- polling --------------------------------------------------------------
   var pollTimer = null, polling = false, pollAgain = false, stopped = false;
+  var pollSeq = 0, pollStartedAt = 0, nextPollAt = 0, lastGoodPoll = 0;
+  var commands = 0;  // goes up when a command is sent and again when it's done
+
+  // Polls sent before or during a command can still show the old state, so they're dropped.
+  function command() { commands++; }
 
   function pollSoon(ms) {
     clearTimeout(pollTimer);
+    nextPollAt = Date.now() + (ms || 0);
     pollTimer = setTimeout(poll, ms || 0);
+  }
+
+  function pollDelay() {
+    if (state.playing) return C.POLL_PLAYING_MS;
+    return state.quietSince && Date.now() - state.quietSince > C.QUIET_AFTER_MS ? C.POLL_QUIET_MS : C.POLL_IDLE_MS;
   }
 
   function poll() {
@@ -258,12 +310,20 @@
     if (polling) { pollAgain = true; return; }
     polling = true;
     clearTimeout(pollTimer);
+    var seq = ++pollSeq, before = commands;
+    pollStartedAt = Date.now();
     Spotify.getPlayer().then(function (p) {
+      if (seq !== pollSeq) return null;  // the watchdog gave up on this one
       state.errors = 0;
+      lastGoodPoll = Date.now();
       toggle($('status'), 'hidden', true);
+      if (before !== commands) return 500;
       render(p);
-      return state.playing ? C.POLL_PLAYING_MS : C.POLL_IDLE_MS;
-    }, onPollError).then(function (delay) {
+      return pollDelay();
+    }).catch(function (err) {
+      return seq === pollSeq ? onPollError(err) : null;
+    }).then(function (delay) {
+      if (seq !== pollSeq) return;
       polling = false;
       if (delay === null) return;
       if (pollAgain) { pollAgain = false; delay = 0; }
@@ -274,37 +334,68 @@
   // Never show an error page: keep the last state on screen and back off.
   function onPollError(err) {
     if (err && err.code === 'logged_out') { showLogin(); return null; }
-    if (err && err.status === 429) return (err.retryAfter || 5) * 1000;
+    if (err && err.status === 429) {
+      toggle($('status'), 'hidden', false);
+      return (err.retryAfter || 5) * 1000;
+    }
+    if (!err || typeof err.status !== 'number') DeckLog.add('script', 'poll: ' + ((err && err.message) || err));
     state.errors++;
     if (state.errors >= 2) toggle($('status'), 'hidden', false);
     return Math.min(60000, 2000 * Math.pow(2, state.errors - 1));
   }
 
+  // Old Safari can lose a request or a timer when it's suspended. Polling must never stay stopped.
+  function watchPolling() {
+    if (stopped) return;
+    var now = Date.now();
+    if (polling ? now - pollStartedAt > C.POLL_STUCK_MS : nextPollAt && now - nextPollAt > C.POLL_STUCK_MS) {
+      DeckLog.add('poll', 'stuck, restarted');
+      pollSeq++;
+      polling = pollAgain = false;
+      pollSoon(0);
+    }
+  }
+
   // ---- state from Spotify ---------------------------------------------------
   function render(p) {
-    var item = p && p.item;
-    if (p && p.device && p.device.id) state.deviceId = p.device.id;
+    var item = p && p.item, now = Date.now();
+    if (p && p.device) useDevice(p.device.id);
     if (layout && layout.record) Records.onPlayer(p);
+    if (layout && !state.jumping) toggle(layout.root, 'is-skipping', false);
+    // Some things play without any details, like ads and the DJ talking.
+    if (!item && p && p.is_playing) {
+      item = { name: p.currently_playing_type === 'ad' ? 'Advertisement' : 'Playing on Spotify', uri: '' };
+    }
     if (!item) {
       state.uri = null;
       state.item = null;
       state.playing = false;
-      // The record player keeps its record on screen until the idle timeout.
+      if (!state.quietSince) state.quietSince = now;
+      // The record player keeps its record on screen until the idle timeout, and a sheet someone
+      // is using stays up.
       if (layout && layout.record) settle();
-      else show('idle');
+      else if (!openSheetId || state.view !== 'deck') show('idle');
       return;
     }
 
-    state.playing = !!p.is_playing;
-    if (Date.now() > state.seekHoldUntil || item.uri !== state.uri) {
+    var changed = item.uri !== state.uri;
+    var old = !changed && now < state.playHoldUntil && !!p.is_playing !== state.playing;
+    if (!old) state.playing = !!p.is_playing;
+    if (!old && (now > state.seekHoldUntil || changed)) {
       state.progressMs = p.progress_ms || 0;
-      state.progressAt = Date.now();
+      state.progressAt = now;
     }
     state.durationMs = item.duration_ms || 0;
-    var disallows = p.actions && p.actions.disallows;
-    state.canSeek = !(disallows && disallows.seeking);
+    var disallows = (p.actions && p.actions.disallows) || {};
+    state.canSeek = !disallows.seeking;
+    state.canShuffle = !disallows.toggling_shuffle;
+    state.canRepeat = !(disallows.toggling_repeat_context && disallows.toggling_repeat_track);
+    if (now > state.modeHoldUntil) {
+      state.shuffle = !!p.shuffle_state;
+      state.repeat = p.repeat_state || 'off';
+    }
     state.device = (p.device && p.device.name) || '';
-    if (Date.now() > state.volumeHoldUntil) {
+    if (now > state.volumeHoldUntil) {
       state.volume = p.device && p.device.supports_volume !== false && typeof p.device.volume_percent === 'number'
         ? p.device.volume_percent : null;
     }
@@ -314,13 +405,14 @@
     var context = (p.context && p.context.uri) || '';
     if (context && state.context && context !== state.context) state.skip = {};
     if (context) state.context = context;
-    if (item.uri !== state.uri) newItem(item);
+    if (changed) newItem(item);
 
     // Paused for a while: go to the idle clock so the screen doesn't burn in.
     if (state.playing) {
-      state.pausedSince = 0;
+      state.pausedSince = state.quietSince = 0;
       show('deck');
     } else {
+      if (!state.quietSince) state.quietSince = now;
       settle();
     }
     paint();
@@ -335,23 +427,27 @@
   function newItem(item) {
     state.uri = item.uri;
     state.endPolled = false;
-    state.liked = false;
+    state.liked = state.likeTouched = false;
     var images = (item.album && item.album.images) || item.images || [];
     state.art = {
       big: images.length ? images[0].url : '',
       small: images.length ? images[images.length - 1].url : ''
     };
-    if (layout) toggle(layout.root, 'is-skipping', false);
     paintArt();
     if (!layout || !layout.record) paintBackground(state.art.small);
 
     // A song removed from Up next has come up: skip it.
-    if (!state.jumping && takeSkip(item.uri)) Spotify.next().then(afterAction, function () {});
+    if (!state.jumping && DeckQueue.take(state.skip, item.uri)) {
+      command();
+      Spotify.next().then(afterAction, function () {});
+    }
 
     var uri = item.uri;
-    Spotify.isSaved(uri).then(function (saved) {
-      if (state.uri === uri) { state.liked = saved; paint(); }
-    }, function () {});
+    if (uri) {
+      Spotify.isSaved(uri).then(function (saved) {
+        if (state.uri === uri && !state.likeTouched) { state.liked = saved; paint(); }
+      }, function () {});
+    }
     state.queueAt = 0;
     loadQueue();
   }
@@ -366,47 +462,18 @@
   }
 
   // ---- queue ----------------------------------------------------------------
-  // Spotify's API can't remove a song from the queue or jump to one. So Remove hides the song and
-  // the deck skips it when it comes up, and tapping a song skips forward to it (as the Spotify
-  // app does).
+  // Spotify's API can't remove a song from the queue or jump to one. So Remove hides the song (see
+  // js/queue.js), and tapping a song skips forward to it (as the Spotify app does).
   function setQueue(d) {
-    state.queueAll = ((d && d.queue) || []).map(function (q, i) {
-      var imgs = (q.album && q.album.images) || q.images || [];
-      return {
-        index: i,  // position in Spotify's queue
-        uri: q.uri,
-        title: q.name || '',
-        artist: (q.artists || []).map(function (a) { return a.name; }).join(', ') || (q.show && q.show.name) || '',
-        art: imgs.length ? imgs[imgs.length - 1].url : ''
-      };
-    });
-    // Forget removals for songs that have left the queue some other way.
-    var playing = d && d.currently_playing && d.currently_playing.uri;
-    Object.keys(state.skip).forEach(function (uri) {
-      var left = state.queueAll.filter(function (q) { return q.uri === uri; }).length + (uri === playing ? 1 : 0);
-      state.skip[uri] = Math.min(state.skip[uri], left);
-      if (!state.skip[uri]) delete state.skip[uri];
-    });
+    state.queueAll = DeckQueue.parse(d);
+    DeckQueue.prune(state.skip, state.queueAll, d && d.currently_playing && d.currently_playing.uri);
     applyQueue();
   }
 
-  // Hide removed songs. A removal hides (and later skips) that song's next appearance.
   function applyQueue() {
-    var hide = {};
-    Object.keys(state.skip).forEach(function (uri) { hide[uri] = state.skip[uri]; });
-    state.queue = state.queueAll.filter(function (q) {
-      if (!hide[q.uri]) return true;
-      hide[q.uri]--;
-      return false;
-    });
+    state.queue = DeckQueue.visible(state.skip, state.queueAll);
     renderQueueList();
     paint();
-  }
-
-  function takeSkip(uri) {
-    if (!state.skip[uri]) return false;
-    if (!--state.skip[uri]) delete state.skip[uri];
-    return true;
   }
 
   var openRow = null;  // the Up next row showing its Remove button
@@ -516,13 +583,14 @@
   function jumpTo(q) {
     if (state.jumping) return;
     state.jumping = true;
+    command();
     toggle(layout.root, 'is-skipping', true);
     toast('Playing ' + q.title);
     var passed = state.queueAll.slice(0, q.index);
     function skip(n) { return n ? Spotify.next().then(function () { return skip(n - 1); }) : Promise.resolve(); }
     skip(q.index + 1).then(function () {
       // The songs skipped on the way have left the queue, removed ones included.
-      passed.forEach(function (s) { takeSkip(s.uri); });
+      passed.forEach(function (s) { DeckQueue.take(state.skip, s.uri); });
       state.queueAll = state.queueAll.slice(q.index + 1);
       state.queueAll.forEach(function (s, i) { s.index = i; });
       applyQueue();
@@ -560,6 +628,7 @@
       lastMinute = now.getMinutes();
       $('clock-time').textContent = textFor('time');
       $('clock-date').textContent = textFor('date');
+      $('clock-note').textContent = expiryNote();
     }
     // Drift a little every minute so no pixel stays lit in the same place.
     if (force || Date.now() - lastDrift > 60000) {
@@ -572,6 +641,7 @@
   }
 
   function tick() {
+    watchPolling();
     if (state.view === 'deck') {
       paint();
       loadQueue();
@@ -580,18 +650,57 @@
     }
     if (state.view === 'idle') {
       tickClock(false);
-      // Restart once a day while idle to clear any memory buildup in old Safari.
-      if (Date.now() - BOOT_AT > 24 * 60 * 60 * 1000) window.location.reload();
+      // Restart once a day while idle to clear any memory buildup in old Safari, and to switch to
+      // a new version of the deck.
+      if (updateReady || Date.now() - BOOT_AT > DAY_MS) restartWhenIdle();
     }
+    checkForUpdate();
     // A paused deck falls back to the idle clock even without a poll.
     if (state.view === 'deck' && !state.playing && state.pausedSince &&
         Date.now() - Math.max(state.pausedSince, state.wokeAt) > C.IDLE_AFTER_PAUSE_MS) show('idle');
   }
 
+  // ---- offline copy and reloading -------------------------------------------
+  // deck.appcache keeps a copy of the deck on the iPad, so it starts and reloads without a network.
+  // Old Safari is the only browser that still has AppCache; everywhere else the network is checked
+  // first, because a failed reload would leave an error page that nobody can close.
+  var appCache = window.applicationCache;
+  var updateReady = false, lastUpdateCheck = Date.now(), lastRestartTry = 0;
+
+  function hasOfflineCopy() {
+    return !!appCache && (appCache.status === appCache.IDLE || appCache.status === appCache.UPDATEREADY);
+  }
+
+  function safeReload() {
+    if (hasOfflineCopy()) {
+      window.location.reload();
+      return Promise.resolve();
+    }
+    return fetch(C.REDIRECT_URI, { cache: 'no-store' }).then(function (res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      window.location.reload();
+    });
+  }
+
+  function restartWhenIdle() {
+    if (openSheetId || Date.now() - lastRestartTry < 10 * 60 * 1000) return;
+    lastRestartTry = Date.now();
+    safeReload().catch(function () {});  // no network: try again later
+  }
+
+  function checkForUpdate() {
+    if (!hasOfflineCopy() || Date.now() - lastUpdateCheck < HOUR_MS) return;
+    lastUpdateCheck = Date.now();
+    try { appCache.update(); } catch (e) {}
+  }
+
   // ---- controls (optimistic, then poll to confirm) --------------------------
+  var laterPoll = null;
   function afterAction() {
+    command();
     pollSoon(500);
-    setTimeout(poll, 1500);
+    clearTimeout(laterPoll);
+    laterPoll = setTimeout(poll, 1500);
   }
 
   function onPlayPause() {
@@ -599,8 +708,14 @@
     state.progressMs += wasPlaying ? Date.now() - state.progressAt : 0;
     state.progressAt = Date.now();
     state.playing = !wasPlaying;
+    state.playHoldUntil = Date.now() + 15000;
     paint();
-    (wasPlaying ? Spotify.pause() : Spotify.play()).then(afterAction, function (err) {
+    command();
+    (wasPlaying ? Spotify.pause() : Spotify.play()).then(function () {
+      state.playHoldUntil = Date.now() + 2000;
+      afterAction();
+    }, function (err) {
+      state.playHoldUntil = 0;
       state.playing = wasPlaying;
       paint();
       actionError(err);
@@ -608,7 +723,9 @@
   }
 
   function onSkip(next) {
+    if (isEpisode() && state.canSeek && state.durationMs) return seekBy(next ? 30000 : -15000);
     toggle(layout.root, 'is-skipping', true);
+    command();
     (next ? Spotify.next() : Spotify.previous()).then(afterAction, function (err) {
       toggle(layout.root, 'is-skipping', false);
       actionError(err);
@@ -619,6 +736,7 @@
     var uri = state.uri;
     if (!uri) return;
     var was = state.liked;
+    state.likeTouched = true;
     state.liked = !was;
     paint();
     (was ? Spotify.removeFromLibrary(uri) : Spotify.saveToLibrary(uri)).then(function () {
@@ -629,13 +747,44 @@
     });
   }
 
+  // Shuffle and repeat: change it on screen now, and put it back if Spotify says no.
+  function setMode(key, value, send, label) {
+    var was = state[key];
+    state[key] = value;
+    state.modeHoldUntil = Date.now() + 15000;
+    paint();
+    toast(label);
+    command();
+    send(value).then(function () {
+      state.modeHoldUntil = Date.now() + 2000;
+      afterAction();
+    }, function (err) {
+      state.modeHoldUntil = 0;
+      state[key] = was;
+      paint();
+      actionError(err);
+    });
+  }
+
+  function onShuffle() {
+    setMode('shuffle', !state.shuffle, Spotify.setShuffle, state.shuffle ? 'Shuffle off' : 'Shuffle on');
+  }
+
+  function onRepeat() {
+    var next = { off: 'context', context: 'track', track: 'off' }[state.repeat] || 'off';
+    setMode('repeat', next, Spotify.setRepeat,
+      { off: 'Repeat off', context: 'Repeat all', track: 'Repeat this song' }[next]);
+  }
+
   var ACTIONS = {
     play: onPlayPause,
     prev: function () { onSkip(false); },
     next: function () { onSkip(true); },
     like: onLike,
-    add: function () { openPicker(); },
-    browse: function () { openBrowse(); },
+    shuffle: onShuffle,
+    repeat: onRepeat,
+    add: function () { if (state.uri) Browse.openPicker({ uri: state.uri, name: state.item.name }); },
+    browse: function () { Browse.open(); },
     queue: function () {
       settings.showQueue = !settings.showQueue;
       saveSettings();
@@ -741,14 +890,19 @@
     });
   }
 
+  function seekBy(ms) {
+    seekTo(Math.max(0, Math.min(state.durationMs - 1000, Math.round(ratio() * state.durationMs) + ms)));
+  }
+
   function seekTo(ms) {
+    command();
     var before = { ms: state.progressMs, at: state.progressAt };
     state.progressMs = ms;
     state.progressAt = Date.now();
     state.seekHoldUntil = Date.now() + 4000;  // don't let a poll from before the seek pull the bar back
     state.endPolled = false;
     paint();
-    Spotify.seek(ms).then(function () { pollSoon(1000); }, function (err) {
+    Spotify.seek(ms).then(function () { command(); pollSoon(1000); }, function (err) {
       state.seekHoldUntil = 0;
       state.progressMs = before.ms;
       state.progressAt = before.at;
@@ -758,9 +912,10 @@
   }
 
   // ---- sheets ---------------------------------------------------------------
-  var sheetTimer = null;
+  var sheetTimer = null, openSheetId = null;
   function openSheet(id) {
     closeSheets();
+    openSheetId = id;
     toggle($('scrim'), 'hidden', false);
     toggle($(id), 'hidden', false);
     bumpSheetTimer();
@@ -768,10 +923,9 @@
   function closeSheets() {
     // This browser handed its login away, so start over at the login screen.
     if (pairing) return window.location.reload();
-    ['picker', 'browse', 'devices', 'settings', 'pairing'].forEach(function (id) { toggle($(id), 'hidden', true); });
-    $('search-input').blur();
-    clearTimeout(search.timer);
-    search.seq++;  // drop any search still in flight
+    openSheetId = null;
+    list(document, '.sheet').forEach(function (s) { toggle(s, 'hidden', true); });
+    Browse.onClose();
     toggle($('scrim'), 'hidden', true);
     clearTimeout(sheetTimer);
     logoutArmed = pairArmed = false;
@@ -780,6 +934,9 @@
   }
   // Nobody is around to close a forgotten sheet on a kiosk, so close it automatically.
   function bumpSheetTimer() {
+    if (!openSheetId) return;
+    state.wokeAt = Date.now();  // the idle clock shouldn't close a sheet in use
+    if (pairing) return;  // it has its own, longer limit
     clearTimeout(sheetTimer);
     sheetTimer = setTimeout(closeSheets, C.SHEET_TIMEOUT_MS);
   }
@@ -791,232 +948,55 @@
     return e;
   }
 
-  // rows: { label, note?, cls?, inert? }. Rows are tappable when onPick is given, unless inert.
-  function fillList(listEl, rows, onPick) {
+  // Covers in long lists load as they come near the screen and let go once they're far away, like
+  // the ones on the record shelf.
+  function thumb(url, cls) {
+    var img = el(url ? 'img' : 'span', 'row-art' + (cls ? ' ' + cls : ''));  // an img with no src gets an outline
+    if (!url) return img;
+    img.alt = '';
+    img._src = url;
+    return img;
+  }
+  function loadThumb(img, on) {
+    if (on && img._src && !img.getAttribute('src')) img.src = img._src;
+    else if (!on && img.getAttribute('src')) img.removeAttribute('src');
+  }
+  function watchArt(listEl) {
+    if (window.IntersectionObserver && !listEl._art) {
+      listEl._art = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { loadThumb(en.target, en.isIntersecting); });
+      }, { root: listEl, rootMargin: '600px 0px' });
+    }
+    list(listEl, 'img.row-art').forEach(function (img) {
+      if (img._watched) return;
+      img._watched = true;
+      if (listEl._art) listEl._art.observe(img);
+      else loadThumb(img, true);
+    });
+  }
+  function clearList(listEl) {
+    if (listEl._art) listEl._art.disconnect();
     listEl.innerHTML = '';
+  }
+
+  // rows: { label, note?, art?, plus?, cls?, inert? }. art: a cover ('' for a blank one); plus: a +
+  // in its place. Rows are tappable when onPick is given, unless inert.
+  function fillList(listEl, rows, onPick) {
+    clearList(listEl);
     rows.forEach(function (row) {
       var li = el('li');
       var live = onPick && !row.inert;
       li.className = row.cls || (live ? '' : 'empty');
+      if (row.plus || row.art !== undefined) {
+        toggle(li, 'has-art', true);
+        li.appendChild(row.plus ? el('span', 'row-art row-plus', '+') : thumb(row.art));
+      }
       li.appendChild(el('span', 'label', row.label));
       if (row.note) li.appendChild(el('span', 'note', row.note));
       if (live) li.addEventListener('click', function () { onPick(row, li); });
       listEl.appendChild(li);
     });
-  }
-
-  // Every playlist in your library. Any of them can be played; only playlists you own or
-  // collaborate on can take new tracks.
-  function canAddTo(pl) {
-    return pl.collaborative || (pl.owner && pl.owner.id === state.me.id);
-  }
-
-  // Everything /me/playlists returns: ones you made and public ones you saved. fresh skips the
-  // 10-minute cache.
-  function loadPlaylists(fresh) {
-    if (!fresh && state.playlists && Date.now() - state.playlistsAt < 10 * 60 * 1000) return Promise.resolve(state.playlists);
-    var me = state.me ? Promise.resolve(state.me) : Spotify.getMe();
-    return me.then(function (user) {
-      state.me = user;
-      function page(offset, acc) {
-        return Spotify.getMyPlaylists(offset).then(function (data) {
-          acc = acc.concat((data && data.items) || []);
-          return data && data.next && acc.length < 500 ? page(offset + 50, acc) : acc;
-        });
-      }
-      return page(0, []);
-    }).then(function (all) {
-      state.playlists = all.filter(Boolean);
-      state.playlistsAt = Date.now();
-      return state.playlists;
-    });
-  }
-
-  function openPicker() {
-    if (!state.uri) return;
-    var listEl = $('picker-list');
-    fillList(listEl, [{ label: 'Loading…' }]);
-    openSheet('picker');
-    loadPlaylists().then(function (all) {
-      var pls = all.filter(canAddTo);
-      if (!pls.length) return fillList(listEl, [{ label: 'No playlists you can add to.' }]);
-      fillList(listEl, pls.map(function (pl) { return { label: pl.name, id: pl.id }; }), addToPlaylist);
-    }, function (err) {
-      closeSheets();
-      actionError(err);
-    });
-  }
-
-  function addToPlaylist(row, li) {
-    if (li.className === 'busy') return;
-    li.className = 'busy';
-    Spotify.addToPlaylist(row.id, state.uri).then(function () {
-      closeSheets();
-      toast('Added to ' + row.label);
-    }, function (err) {
-      li.className = '';
-      actionError(err);
-    });
-  }
-
-  // ---- browse: play one of your playlists, or search for a song -------------
-  var search = { q: '', seq: 0, timer: null };
-
-  function openBrowse() {
-    // Start fresh each time: on a kiosk the last search could be hours old.
-    $('search-input').value = '';
-    openSheet('browse');
-    setQuery('');
-  }
-
-  function setQuery(raw) {
-    clearTimeout(search.timer);
-    search.timer = null;
-    search.q = raw.replace(/^\s+|\s+$/g, '');
-    toggle($('search-clear'), 'hidden', !raw);
-    if (!search.q) {
-      search.seq++;
-      showPlaylists();
-      return;
-    }
-    // Wait for a pause in typing so each keystroke isn't a request.
-    search.timer = setTimeout(function () { search.timer = null; runSearch(0); }, 450);
-  }
-
-  function showPlaylists() {
-    var listEl = $('browse-list');
-    var seq = search.seq;
-    // Show what we have right away, then refetch so a playlist saved in the Spotify app since
-    // the last look shows up without waiting out the cache.
-    var shown = state.playlists;
-    if (shown) render(shown);
-    else fillList(listEl, [{ label: 'Loading…' }]);
-    loadPlaylists(true).then(function (pls) {
-      if (seq !== search.seq) return;  // a search started or the sheet closed meanwhile
-      if (shown && samePlaylists(shown, pls)) return;  // unchanged: keep the scroll position
-      render(pls);
-    }, function (err) {
-      if (shown) return;  // the cached list is still up
-      closeSheets();
-      actionError(err);
-    });
-
-    function render(pls) {
-      var rows = [];
-      if (!state.uri) rows.push({ label: 'Resume on a device…', resume: true });
-      rows.push({ label: 'Your playlists', cls: 'section', inert: true });
-      if (!pls.length) rows.push({ label: 'No playlists yet.', cls: 'empty', inert: true });
-      pls.forEach(function (pl) {
-        var mine = canAddTo(pl);
-        var count = pl.items || pl.tracks;
-        rows.push({
-          label: pl.name,
-          note: !mine && pl.owner && pl.owner.display_name ? 'by ' + pl.owner.display_name
-            : count && typeof count.total === 'number' ? count.total + ' songs' : '',
-          uri: pl.uri
-        });
-      });
-      fillList(listEl, rows, function (row) {
-        if (row.resume) openDevices();
-        else startPlayback({ context_uri: row.uri }, row.label);
-      });
-    }
-  }
-
-  function samePlaylists(a, b) {
-    return a.length === b.length && a.every(function (pl, i) { return pl.id === b[i].id && pl.name === b[i].name; });
-  }
-
-  function runSearch(offset) {
-    var q = search.q, seq = ++search.seq, listEl = $('browse-list');
-    if (!offset) fillList(listEl, [{ label: 'Searching…' }]);
-    Spotify.searchTracks(q, offset).then(function (data) {
-      if (seq !== search.seq) return;  // a newer search replaced this one
-      var page = (data && data.tracks) || {};
-      var tracks = (page.items || []).filter(Boolean);
-      if (!offset && !tracks.length) return fillList(listEl, [{ label: 'No songs found for “' + q + '”.' }]);
-      if (!offset) listEl.innerHTML = '';
-      var more = listEl.querySelector('.more');
-      if (more) listEl.removeChild(more);
-      tracks.forEach(function (t) { listEl.appendChild(trackRow(t)); });
-      // Spotify returns 10 at a time; stop at 50 to keep the list light on the iPad.
-      if (page.next && offset + 10 < 50) {
-        more = el('li', 'more', 'More results');
-        more.addEventListener('click', function () {
-          if (more.textContent !== 'More results') return;
-          more.textContent = 'Loading…';
-          runSearch(offset + 10);
-        });
-        listEl.appendChild(more);
-      }
-    }, function (err) {
-      if (seq !== search.seq) return;
-      if (err && err.code === 'logged_out') return actionError(err);
-      var msg = err && err.status === 0 ? 'No connection. Try again.'
-        : err && err.status === 429 ? 'Spotify is busy. Try again in a moment.'
-        : 'Search didn’t work. Try again.';
-      if (!offset) return fillList(listEl, [{ label: msg }]);
-      toast(msg);
-      var more = listEl.querySelector('.more');
-      if (more) more.textContent = 'More results';
-    });
-  }
-
-  function trackRow(t) {
-    var li = el('li', 'track');
-    var imgs = (t.album && t.album.images) || [];
-    var art = el('img', 'track-art');
-    art.alt = '';
-    if (imgs.length) art.src = imgs[imgs.length - 1].url;  // the smallest (64px)
-    var text = el('div', 'track-text');
-    text.appendChild(el('div', 'track-title', t.name || ''));
-    text.appendChild(el('div', 'track-artist', (t.artists || []).map(function (a) { return a.name; }).join(', ')));
-    var queue = el('button', 'track-queue', '+ Queue');
-    queue.type = 'button';
-    queue.setAttribute('aria-label', 'Add to queue');
-    queue.addEventListener('click', function (e) {
-      e.stopPropagation();
-      queueTrack(t, li);
-    });
-    li.appendChild(art);
-    li.appendChild(text);
-    li.appendChild(queue);
-    li.addEventListener('click', function () {
-      // Play it within its album so music keeps going after the song ends.
-      startPlayback(t.album && t.album.uri ? { context_uri: t.album.uri, offset: { uri: t.uri } } : { uris: [t.uri] }, t.name);
-    });
-    return li;
-  }
-
-  function queueTrack(t, li) {
-    if (li.classList.contains('busy')) return;
-    toggle(li, 'busy', true);
-    Spotify.addToQueue(t.uri).then(function () {
-      toggle(li, 'busy', false);
-      toast('Queued ' + t.name);
-      state.queueAt = 0;  // refresh Up next
-    }, function (err) {
-      toggle(li, 'busy', false);
-      if (isNoDevice(err)) toast('Start playing something first, then queue songs.');
-      else actionError(err);
-    });
-  }
-
-  // Start a playlist, album or track. Target the last device seen so this works from the idle
-  // clock too; if that device is gone, ask which one to play on.
-  function startPlayback(body, label) {
-    closeSheets();
-    function done() {
-      toast('Playing ' + label);
-      afterAction();
-    }
-    Spotify.playItems(body, state.deviceId).then(done, function (err) {
-      if (!isNoDevice(err)) return actionError(err);
-      openDevices(function (device) {
-        state.deviceId = device.id;
-        Spotify.playItems(body, device.id).then(done, actionError);
-      });
-    });
+    watchArt(listEl);
   }
 
   // Device sheet: start or move playback to one of your Spotify devices, or with onPick, choose
@@ -1033,6 +1013,7 @@
       }), function (row) {
         closeSheets();
         if (onPick) return onPick(row);
+        command();
         Spotify.transfer(row.id, true).then(afterAction, actionError);
       });
     }, function (err) {
@@ -1045,11 +1026,55 @@
   function openSettings() {
     var expires = DeckAuth.loginExpiresAt();
     $('login-expiry').textContent = expires
-      ? 'Spotify will ask you to log in again around ' +
-        new Date(expires).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + '.'
+      ? (expiryNote() ? expiryNote() + ' It ends around ' : 'Spotify will ask you to log in again around ') + day(expires) + '.'
       : '';
     applySettings();
     openSheet('settings');
+  }
+
+  function day(ms) {
+    return new Date(ms).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  // From two weeks out, say the login is about to end, so the iPad can be paired again in time.
+  function expiryNote() {
+    var expires = DeckAuth.loginExpiresAt();
+    var days = expires ? Math.ceil((expires - Date.now()) / DAY_MS) : Infinity;
+    if (days > 14) return '';
+    if (days < 1) return 'The Spotify login is about to end. Pair again from your Mac.';
+    return 'Spotify login ends in ' + (days === 1 ? '1 day' : days + ' days') + '. Pair again from your Mac.';
+  }
+
+  // ---- diagnostics ----------------------------------------------------------
+  // The iPad has no console, so this is how to see what went wrong on it.
+  function ago(ms) {
+    if (!ms) return 'never';
+    var s = Math.round((Date.now() - ms) / 1000);
+    return s < 90 ? s + ' s ago' : s < 5400 ? Math.round(s / 60) + ' min ago'
+      : s < 172800 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago';
+  }
+
+  function openDiagnostics() {
+    var stats = Spotify.stats(), expires = DeckAuth.loginExpiresAt();
+    var rows = [
+      { label: 'Version', note: typeof DECK_VERSION === 'string' ? DECK_VERSION : 'unknown' },
+      { label: 'Started', note: ago(BOOT_AT) },
+      { label: 'Last heard from Spotify', note: ago(lastGoodPoll) },
+      { label: 'Requests in the last hour', note: String(stats.callsLastHour) },
+      { label: 'Waiting on limits', note: stats.waiting.length ? stats.waiting.map(function (w) {
+        return (w.group === 'all' ? 'everything' : w.group) + ' ' + w.secs + ' s';
+      }).join(', ') : 'none' },
+      { label: 'Offline copy', note: !appCache ? 'not supported' : hasOfflineCopy() ? (updateReady ? 'yes, update ready' : 'yes') : 'no' },
+      { label: 'Login ends', note: expires ? day(expires) : 'unknown' },
+      { label: 'Recent errors', cls: 'section' }
+    ];
+    var log = DeckLog.list().reverse();
+    if (!log.length) rows.push({ label: 'None.', cls: 'empty' });
+    log.forEach(function (e) {
+      rows.push({ label: e.text + (e.n > 1 ? ' ×' + e.n : ''), note: ago(e.at), cls: 'err' });
+    });
+    fillList($('diag-list'), rows);
+    openSheet('diag');
   }
 
   function onLogout() {
@@ -1060,7 +1085,7 @@
       return;
     }
     DeckAuth.logout();
-    window.location.reload();
+    safeReload().catch(function () { showLogin('Logged out.'); });
   }
 
   // ---- pairing: hand this browser's login to the iPad -----------------------
@@ -1104,10 +1129,14 @@
   }
 
   // ---- login ----------------------------------------------------------------
+  // Spotify's login page doesn't run on iOS 12, and there'd be no way back from it, so the iPad
+  // shows how to pair again instead of a Connect button.
   function showLogin(message) {
     stopped = true;
-    closeSheets();
-    $('login-msg').textContent = message || (DeckAuth.isLoggedIn() ? '' : 'Spotify needs you to log in again.');
+    if (!pairing) closeSheets();
+    $('login-msg').textContent = message === undefined ? 'Spotify needs you to log in again.' : message;
+    toggle($('login-btn'), 'hidden', ON_IOS);
+    toggle($('login-hint'), 'hidden', !ON_IOS);
     show('login');
   }
 
@@ -1135,12 +1164,18 @@
     document.addEventListener('touchmove', function (e) {
       var el = e.target;
       while (el && el !== document.body) {
-        if (el.classList && el.classList.contains('scroll')) return;
+        // A list too short to scroll would drag the whole page instead.
+        if (el.classList && el.classList.contains('scroll') && el.scrollHeight > el.clientHeight) return;
         el = el.parentNode;
       }
       e.preventDefault();
     }, { passive: false });
     document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+    // Someone's here: go back to polling at the usual rate.
+    ['touchstart', 'mousedown'].forEach(function (type) {
+      document.addEventListener(type, function () { if (state.quietSince) state.quietSince = Date.now(); });
+    });
 
     // Catch up straight away after the network or the screen comes back.
     window.addEventListener('online', function () { pollSoon(0); });
@@ -1159,27 +1194,9 @@
     // Tapping the idle clock brings back a paused track or the turntable, or opens Browse to
     // start something.
     $('idle').addEventListener('click', function () {
+      pollSoon(0);
       if (state.uri || layout.record) { state.wokeAt = Date.now(); show('deck'); }
-      else openBrowse();
-    });
-
-    // Search box. Search runs as you type; the keyboard's Search key just hides the keyboard.
-    var input = $('search-input');
-    input.addEventListener('input', function () {
-      bumpSheetTimer();
-      setQuery(input.value);
-    });
-    $('search-form').addEventListener('submit', function (e) {
-      e.preventDefault();
-      input.blur();
-      // Typed and hit Search before the pause: search now instead of waiting.
-      if (search.q && search.timer) { clearTimeout(search.timer); search.timer = null; runSearch(0); }
-    });
-    // iOS 12 can leave the page pushed up after the keyboard closes.
-    input.addEventListener('blur', function () { window.scrollTo(0, 0); });
-    $('search-clear').addEventListener('click', function () {
-      input.value = '';
-      setQuery('');
+      else Browse.open();
     });
 
     $('scrim').addEventListener('click', closeSheets);
@@ -1195,7 +1212,10 @@
       });
     });
     $('devices-btn').addEventListener('click', function () { openDevices(); });
-    $('reload-btn').addEventListener('click', function () { window.location.reload(); });
+    $('diag-btn').addEventListener('click', openDiagnostics);
+    $('reload-btn').addEventListener('click', function () {
+      safeReload().catch(function () { toast('No connection, so not reloading'); });
+    });
     $('logout-btn').addEventListener('click', onLogout);
     $('pair-btn').addEventListener('click', onSendLogin);
   }
@@ -1205,42 +1225,56 @@
     setupSettingsHotspot();
     setupControls();
     applySettings();
+    Browse.init({
+      state: state,
+      el: el,
+      thumb: thumb,
+      watchArt: watchArt,
+      clearList: clearList,
+      fillList: fillList,
+      openSheet: openSheet,
+      closeSheets: closeSheets,
+      bumpSheetTimer: bumpSheetTimer,
+      toast: toast,
+      busyText: busyText,
+      actionError: actionError,
+      command: command,
+      afterAction: afterAction,
+      isNoDevice: isNoDevice,
+      openDevices: openDevices,
+      useDevice: useDevice
+    });
     Records.init({
       state: state,
       toast: toast,
       actionError: actionError,
+      command: command,
       afterAction: afterAction,
       isNoDevice: isNoDevice,
       openDevices: openDevices,
+      useDevice: useDevice,
       wake: function () { state.wokeAt = Date.now(); }  // using the turntable holds off the idle clock
     });
     buildLayout();
     setInterval(tick, 1000);
+
+    if (appCache) appCache.addEventListener('updateready', function () { updateReady = true; });
 
     // The Home Screen app doesn't need the pairing button; the iPad is the one receiving logins.
     toggle($('pair-btn'), 'hidden', !!window.navigator.standalone);
 
     // A pairing link opened in iOS Safari: the login has to land in the Home Screen app, which
     // has its own storage. Keep the link in the address bar so Add to Home Screen captures it.
-    var onIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    if (DeckAuth.hasPairing() && onIOS && !window.navigator.standalone) {
-      stopped = true;
-      $('login-msg').textContent = 'Almost there. Tap Share, then Add to Home Screen, then open Deck from your Home Screen.';
-      toggle($('login-btn'), 'hidden', true);
+    if (DeckAuth.hasPairing() && ON_IOS && !window.navigator.standalone) {
+      showLogin('Almost there. Tap Share, then Add to Home Screen, then open Deck from your Home Screen.');
       toggle($('login-hint'), 'hidden', true);
-      show('login');
       return;
     }
 
     DeckAuth.importPairing().then(function (pairError) {
       return DeckAuth.handleCallback().then(function (error) { return error || pairError; });
     }).then(function (error) {
-      if (error || !DeckAuth.isLoggedIn()) {
-        stopped = true;
-        $('login-msg').textContent = error || '';
-        show('login');
-        return;
-      }
+      if (error || !DeckAuth.isLoggedIn()) return showLogin(error || '');
       show('idle');
       poll();
     });
